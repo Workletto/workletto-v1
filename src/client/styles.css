@@ -1,0 +1,2605 @@
+/*
+ * Radix Themes sits in its own layer, above the small reset below, so Radix wins over the
+ * reset and every rule outside any layer (the rest of this file) beats Radix whatever its
+ * specificity: the overrides here need no tricks.
+ */
+@layer base, radix;
+
+@import "@radix-ui/themes/styles.css" layer(radix);
+/* The one typeface: Inter, variable weight. Bundled with the app, never loaded from another site. */
+@import "@fontsource-variable/inter/wght.css";
+
+/*
+ * The palette. Light is the default; the .dark class is put on <html> by theme.ts,
+ * for dark mode chosen in Appearance or asked for by the device. The accent color
+ * (--accent-1 … 12, --wl-focus …) is set on <html> by theme.ts too, generated from
+ * the organization's color. Keep these values in step with PALETTE in
+ * src/shared/color.ts: a test checks they match and that each meets its contrast.
+ */
+:root,
+.light {
+  --wl-paper: #ffffff;
+  --wl-card: #ffffff;
+  --wl-ink: #1b1a17;
+  --wl-muted: #565b64;
+  --wl-hairline: #dcdfe4;
+  --wl-control: #80858e;
+  /* The gray around the work sheet (sidebar and margins), and the band behind summaries and totals. */
+  --wl-shell: #eceef2;
+  --wl-subtle: #f6f7f9;
+  color-scheme: light;
+}
+
+/* The one exception to Radix's space steps: a label sits this far above its field. */
+:root {
+  --wl-label-gap: 6px;
+}
+
+.dark {
+  --wl-paper: #14161a;
+  --wl-card: #1c1f24;
+  --wl-ink: #ececef;
+  --wl-muted: #a3a8b2;
+  --wl-hairline: #2d3139;
+  --wl-control: #737a86;
+  --wl-shell: #0c0e11;
+  --wl-subtle: #1a1d22;
+  color-scheme: dark;
+}
+
+/* Before the script has chosen a mode, follow the device, so there is no white flash. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) {
+    --wl-paper: #14161a;
+    --wl-ink: #ececef;
+    --wl-shell: #0c0e11;
+    color-scheme: dark;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--wl-paper);
+  color: var(--wl-ink);
+}
+
+@layer base {
+  /* A small reset for the plain elements the app uses (Radix resets its own). */
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+  :where(h1, h2, h3, p, ul, dl, dd, fieldset, legend, figure) {
+    margin: 0;
+    padding: 0;
+  }
+  :where(fieldset) {
+    border: 0;
+    min-width: 0;
+  }
+  :where(ul) {
+    list-style: none;
+  }
+  :where(img) {
+    display: block;
+    max-width: 100%;
+  }
+  :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* ---- Radix Themes, set to this palette ---- */
+
+.radix-themes {
+  --color-background: var(--wl-paper);
+  --color-panel-solid: var(--wl-card);
+  --default-font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --heading-font-family: var(--default-font-family);
+  /* Three weights: 400, 500 and 600. Radix's "bold" is the 600. */
+  --font-weight-bold: 600;
+  --gray-11: var(--wl-muted);
+  --gray-a11: var(--wl-muted);
+  --gray-12: var(--wl-ink);
+  --gray-a12: var(--wl-ink);
+}
+
+/* The focus ring is the accent shade that stands out (3:1) from the page in this mode. */
+.radix-themes,
+[data-accent-color] {
+  --focus-8: var(--wl-focus);
+}
+
+/* Tabs stay on one row. The row scrolls sideways in its own labeled region (NavTabs), not the list inside it. */
+.wl-tabs {
+  scrollbar-width: none;
+}
+.wl-tabs::-webkit-scrollbar {
+  display: none;
+}
+.wl-tabs .rt-TabNavRoot {
+  width: max-content;
+  min-width: 100%;
+}
+.wl-tabs .rt-TabNavList {
+  overflow-x: visible;
+}
+
+/* The strip of tabs, with a fade at an edge that has more tabs beyond it. */
+.wl-tabs-frame {
+  position: relative;
+}
+.wl-tabs-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  pointer-events: none;
+}
+.wl-tabs-fade-left {
+  left: 0;
+  background: linear-gradient(to right, var(--wl-paper), transparent);
+}
+.wl-tabs-fade-right {
+  right: 0;
+  background: linear-gradient(to left, var(--wl-paper), transparent);
+}
+
+/* Page titles sit a little tighter. */
+.rt-Heading:where(h1) {
+  letter-spacing: -0.015em;
+}
+
+/* Times and money line up. */
+.wl-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A control that is busy is dimmed but keeps focus (see installBusyGuard in a11y.tsx). */
+[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+/* A solid button that can't be used now is plain grey, not a washed-out accent. */
+.rt-BaseButton.rt-variant-solid[aria-disabled="true"] {
+  opacity: 1;
+  background-color: var(--gray-a3);
+  color: var(--wl-muted);
+  box-shadow: none;
+}
+
+/* A long name with no spaces (a project, a client) breaks onto the next line instead of widening the page. */
+h1,
+h2,
+h3 {
+  overflow-wrap: anywhere;
+}
+
+/* Programmatic focus on a page heading needs no ring: it is not a control. */
+h1[tabindex="-1"]:focus,
+main[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Every control outside Radix shows where focus is. */
+:where(a, button, input, select, textarea, summary, [tabindex]):not([tabindex="-1"]):not([class^="rt-"]):not([class*=" rt-"]):focus-visible {
+  outline: 2px solid var(--wl-focus);
+  outline-offset: 2px;
+}
+
+/* Placeholder text clears 4.5:1 in both modes (Radix's own shade falls short); it stays lighter than typed text. */
+.rt-TextFieldRoot:where(.rt-variant-surface) :where(.rt-TextFieldInput)::placeholder,
+.rt-TextAreaRoot:where(.rt-variant-surface) :where(.rt-TextAreaInput)::placeholder {
+  color: var(--gray-11);
+}
+.rt-SelectTrigger:where(.rt-variant-surface):where([data-placeholder]) :where(.rt-SelectTriggerInner) {
+  color: var(--gray-11);
+}
+
+/* Form controls get a border that stands out (3:1) from the page and from cards. */
+.rt-TextFieldRoot:where(.rt-variant-surface),
+.rt-TextAreaRoot:where(.rt-variant-surface),
+.rt-SelectTrigger:where(.rt-variant-surface) {
+  box-shadow: inset 0 0 0 1px var(--wl-control);
+}
+.rt-SelectTrigger:where(.rt-variant-surface):hover,
+.rt-SelectTrigger:where(.rt-variant-surface)[data-state="open"] {
+  box-shadow: inset 0 0 0 1px var(--wl-ink);
+}
+.rt-TextFieldRoot:where(.rt-variant-surface):has(input[aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 2px var(--red-11);
+}
+.rt-BaseCheckboxRoot:where(.rt-variant-surface)[data-state="unchecked"]::before {
+  box-shadow: inset 0 0 0 1px var(--wl-control);
+}
+.rt-BaseCheckboxRoot:where(.rt-variant-surface)[data-state="checked"] .rt-BaseCheckboxIndicator,
+.rt-BaseCheckboxRoot:where(.rt-variant-surface)[data-state="indeterminate"] .rt-BaseCheckboxIndicator {
+  color: var(--wl-indicator-ink);
+}
+.rt-BaseRadioRoot:where(.rt-variant-surface)[data-state="unchecked"]::before {
+  box-shadow: inset 0 0 0 1px var(--wl-control);
+}
+/* The words in a choice start at the left in every card, whatever their length. */
+.rt-RadioCardsItem {
+  justify-content: flex-start;
+}
+.rt-RadioCardsItem:where([data-state="unchecked"])::after {
+  box-shadow: inset 0 0 0 1px var(--wl-control);
+}
+.rt-RadioCardsItem:where([data-state="unchecked"]:hover)::after {
+  box-shadow: inset 0 0 0 1px var(--wl-ink);
+}
+/*
+ * Secondary actions (Export CSV, Choose file, Email to client, the week arrows): a quiet gray fill
+ * and no outline, so the one solid button on a screen is clearly the main action and fewer boxes
+ * compete with the work (WRK-121). Their words or icons identify them; the fill shows they're buttons.
+ */
+.rt-BaseButton:where(.rt-variant-outline) {
+  background-color: var(--gray-a3);
+  box-shadow: none;
+  color: var(--gray-12);
+}
+.rt-BaseButton:where(.rt-variant-outline):where(:hover:not([data-disabled])) {
+  background-color: var(--gray-a4);
+}
+/* A solid button whose fill barely differs from the page (a very dark or very pale accent) gets a line. */
+.rt-BaseButton:where(.rt-variant-solid):where([data-accent-color=""], :not([data-accent-color])) {
+  box-shadow: inset 0 0 0 1px var(--wl-edge);
+}
+/* Destructive buttons reach 4.5:1: a darker red with white text in light mode, the usual red with dark text in dark mode. */
+.rt-BaseButton:where(.rt-variant-solid)[data-accent-color="red"] {
+  background-color: var(--red-11);
+  color: #ffffff;
+}
+.rt-BaseButton:where(.rt-variant-solid)[data-accent-color="red"]:hover {
+  background-color: var(--red-12);
+}
+.dark .rt-BaseButton:where(.rt-variant-solid)[data-accent-color="red"] {
+  background-color: var(--red-9);
+  color: var(--wl-paper);
+}
+.dark .rt-BaseButton:where(.rt-variant-solid)[data-accent-color="red"]:hover {
+  background-color: var(--red-10);
+}
+/* Switches (Day/Week, report grouping): a quiet track; the chosen option sits on a white chip whose edge keeps 3:1. */
+.rt-SegmentedControlRoot {
+  box-shadow: none;
+  background-color: var(--gray-a3);
+}
+.rt-SegmentedControlIndicator::before {
+  background-color: var(--wl-card);
+  box-shadow: 0 0 0 1px var(--wl-control);
+}
+
+/*
+ * Text buttons (Edit, Cancel, Delete, Restore) and a row's "More actions" button: Radix's ghost
+ * look, in the same box as every other button of their size, without the negative margins
+ * Radix gives ghosts for sitting inside a line of text.
+ */
+.wl-text-button {
+  margin: 0;
+  box-sizing: border-box;
+  height: var(--base-button-height);
+  padding-block: 0;
+}
+.rt-Button.wl-text-button {
+  padding-inline: var(--space-2);
+  font-weight: var(--font-weight-medium);
+}
+/* Alone under a form or table, the text lines up with the edge above it: the padding, taken back as a negative margin. */
+.rt-Button.wl-text-button.wl-text-button-flush {
+  margin-inline-start: calc(-1 * var(--space-2));
+}
+.rt-IconButton.wl-text-button {
+  width: var(--base-button-height);
+  padding-inline: 0;
+}
+
+/* A colored badge's small text uses the darkest shade of its color: Radix's usual shade falls just short of 4.5:1 on white. */
+.rt-Badge.rt-variant-soft:not([data-accent-color="gray"]) {
+  color: var(--accent-12);
+}
+
+/* Checkboxes, radios and switches are at least 24 x 24 px to hit (the drawn box stays smaller). */
+.rt-BaseCheckboxRoot,
+.rt-BaseRadioRoot {
+  min-width: 24px;
+  min-height: 24px;
+  justify-content: center;
+}
+
+/* Text only assistive technology gets. */
+.wl-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* People who ask for less motion get none from Radix's transitions and animations either. */
+@media (prefers-reduced-motion: reduce) {
+  .radix-themes *,
+  .radix-themes *::before,
+  .radix-themes *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Touch screens: controls are 40px to hit, like the larger controls elsewhere. Desktop sizes are untouched. ---- */
+@media (pointer: coarse) {
+  .rt-BaseButton.wl-text-button {
+    height: 40px;
+  }
+  .rt-IconButton.wl-text-button {
+    width: 40px;
+  }
+  .rt-BaseButton.rt-r-size-2,
+  .rt-SelectTrigger.rt-r-size-2,
+  .rt-TextFieldRoot.rt-r-size-2 {
+    min-height: 40px;
+    height: 40px;
+  }
+  /* A checkbox or radio's label is padded so the tap area is 40px tall. */
+  .wl-choice {
+    display: block;
+    padding-block: 8px;
+  }
+}
+
+/* ---- Cards ---- */
+
+/*
+ * A list or a table: no box of its own, just a hairline above and below, with the rows' own
+ * rules between (WRK-121: fewer frames). Padding comes from the content, or from `padded`.
+ * The invoice document is the one card drawn as a sheet of paper (see .wl-invoice).
+ */
+.wl-card {
+  --card-padding: 0px;
+  --card-background-color: transparent;
+  --base-card-surface-box-shadow: none;
+  --base-card-border-radius: 0px;
+  border-top: 1px solid var(--wl-hairline);
+  border-bottom: 1px solid var(--wl-hairline);
+  overflow: hidden;
+}
+.wl-card-padded {
+  --card-padding: 20px;
+}
+@media (max-width: 39.999rem) {
+  .wl-card-padded {
+    --card-padding: 16px;
+  }
+}
+
+/* ---- The signed-in frame (Direction B, WRK-124) ---- */
+
+/*
+ * A gray shell: the sidebar on the left, and one white sheet holding the page. Below 64rem the
+ * sidebar becomes a bar across the top, the sections fold into the Menu button, and the sheet
+ * fills the width.
+ */
+body:has(.wl-app) {
+  background: var(--wl-shell);
+}
+.wl-app {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--wl-shell);
+}
+
+.wl-skip {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 8px 16px;
+  border-radius: var(--radius-3);
+  background: var(--wl-card);
+  color: var(--wl-ink);
+  font-weight: 500;
+  box-shadow: 0 0 0 1px var(--wl-control);
+}
+.wl-skip:focus {
+  left: 16px;
+}
+
+.wl-sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 16px 16px 12px;
+  box-sizing: border-box;
+}
+.wl-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.wl-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 4px 8px;
+}
+.wl-brand img {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+/* A wide logo (a wordmark) stands alone, up to the sidebar's width. */
+.wl-brand[data-logo="wide"] img {
+  width: auto;
+  max-width: 200px;
+  height: 34px;
+  border-radius: 0;
+  object-position: left center;
+}
+@media (max-width: 74.999rem) {
+  .wl-brand[data-logo="wide"] img {
+    max-width: 160px;
+    height: 28px;
+  }
+}
+.wl-brand-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
+  font-size: 15px;
+  font-weight: 600;
+}
+.wl-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wl-brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 20px;
+}
+.wl-menu-button {
+  display: none;
+}
+
+/* The sections. The last group (Manage and Help) sits at the bottom of the sidebar. */
+.wl-nav {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: 20px;
+}
+.wl-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wl-nav-group[data-bottom] {
+  margin-top: auto;
+}
+.wl-navlink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--wl-muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+}
+:where(button).wl-navlink {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: 0 solid transparent;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wl-navlink svg {
+  flex: none;
+}
+.wl-navlink:hover {
+  color: var(--wl-ink);
+  background: var(--gray-a3);
+}
+/* The page you're on: a white tab like the sheet, the icon in the accent, and an accent dot. */
+.wl-navlink[aria-current="page"] {
+  color: var(--wl-ink);
+  font-weight: 600;
+  background: var(--wl-paper);
+  box-shadow:
+    0 0 0 1px var(--wl-hairline),
+    0 1px 2px rgb(16 24 40 / 0.06);
+}
+.wl-navlink[aria-current="page"] svg {
+  color: var(--accent-11);
+}
+.wl-navlink[aria-current="page"]::after {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent-9);
+}
+.wl-navlink-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wl-nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--accent-a3);
+  color: var(--accent-11);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.wl-nav-signout {
+  display: none;
+}
+
+/* The signed-in person, at the foot of the sidebar. */
+.wl-account {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 14px 8px 4px;
+  border: 0;
+  border-top: 1px solid var(--wl-hairline);
+  background: none;
+  color: var(--wl-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wl-account:hover .wl-brand-name {
+  text-decoration: underline;
+}
+.wl-account .wl-brand-name {
+  color: var(--wl-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.wl-account-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.wl-account-role {
+  font-size: 13px;
+  line-height: 18px;
+}
+.wl-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-a3);
+  color: var(--accent-11);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The running timer: a card on Time, one line elsewhere. */
+.wl-timer {
+  display: flex;
+  min-width: 0;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-paper);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+}
+.wl-timer[data-size="full"] {
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+}
+.wl-timer[data-size="compact"] {
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  font-size: 14px;
+}
+.wl-timer-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--green-11);
+  font-size: 12px;
+  font-weight: 500;
+}
+.wl-timer[data-size="full"] .wl-timer-time {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 32px;
+}
+.wl-timer[data-size="compact"] .wl-timer-time {
+  margin-left: auto;
+  font-weight: 600;
+}
+.wl-timer-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+.wl-timer-project {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wl-ink);
+  font-weight: 500;
+}
+.wl-timer-project:hover {
+  text-decoration: underline;
+}
+.wl-timer-client {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wl-muted);
+  font-size: 13px;
+}
+.wl-timer[data-size="full"] .wl-timer-stop {
+  width: 100%;
+}
+.wl-timer-stop svg {
+  color: var(--red-10);
+}
+/* Laptops with short screens (1366 x 768, 1280 x 720): the sidebar tightens so Help and the
+   account menu stay in view with the large running card and every link (QA2-28). */
+@media (min-width: 75rem) and (max-height: 50rem) {
+  .wl-sidebar {
+    gap: 14px;
+    padding-block: 12px 8px;
+  }
+  .wl-nav {
+    gap: 12px;
+  }
+  .wl-navlink {
+    min-height: 34px;
+  }
+  .wl-account {
+    padding-top: 10px;
+  }
+  .wl-timer[data-size="full"] {
+    padding: 12px;
+  }
+  .wl-timer-state {
+    margin-bottom: 4px;
+  }
+  .wl-timer-what {
+    margin-bottom: 8px;
+  }
+  .wl-timer[data-size="full"] .wl-timer-time {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+@media (min-width: 75rem) and (max-height: 46rem) {
+  .wl-timer-client {
+    display: none;
+  }
+}
+.wl-pulse {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green-9);
+  box-shadow: 0 0 0 3px var(--green-a4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wl-pulse {
+    animation: wl-pulse 2s ease-in-out infinite;
+  }
+}
+@keyframes wl-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The white sheet that holds the page. */
+.wl-workarea {
+  min-width: 0;
+  padding: 8px 8px 8px 0;
+}
+.wl-sheet {
+  min-height: calc(100vh - 16px);
+  box-sizing: border-box;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-paper);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+}
+.wl-demo {
+  padding: 16px 40px 0;
+}
+.wl-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1240px;
+  margin-inline: auto;
+  padding: 28px 40px 48px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+/* Below 75rem (1200 px) the sidebar would leave the week grid too little room: it becomes a bar
+   across the top, and the sections fold into the Menu button. */
+@media (max-width: 74.999rem) {
+  .wl-app {
+    display: block;
+  }
+  .wl-sidebar {
+    position: static;
+    height: auto;
+    overflow: visible;
+    gap: 8px;
+    padding: 8px var(--space-4);
+    background: var(--wl-shell);
+  }
+  .wl-brand {
+    padding-inline: 0;
+  }
+  .wl-menu-button {
+    display: inline-flex;
+  }
+  .wl-nav {
+    display: none;
+    gap: 0;
+  }
+  .wl-nav[data-open="true"] {
+    display: flex;
+  }
+  .wl-nav-group {
+    gap: 0;
+  }
+  .wl-nav-group[data-bottom] {
+    margin-top: 0;
+  }
+  .wl-navlink {
+    min-height: 44px;
+    border-top: 1px solid var(--wl-hairline);
+    border-radius: 0;
+    padding-inline: 0;
+  }
+  .wl-navlink[aria-current="page"] {
+    background: none;
+    box-shadow: none;
+  }
+  .wl-nav-signout {
+    display: flex;
+    justify-content: flex-start;
+    min-height: 44px;
+    border-top: 1px solid var(--wl-hairline);
+    padding-inline: 0;
+  }
+  .wl-account {
+    display: none;
+  }
+  .wl-timer[data-size="full"] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 8px 8px 8px 12px;
+  }
+  .wl-timer[data-size="full"] .wl-timer-state {
+    display: none;
+  }
+  .wl-timer[data-size="full"] .wl-timer-time {
+    font-size: 18px;
+    line-height: 24px;
+  }
+  .wl-timer-what {
+    flex: 1 1 8rem;
+    margin: 0;
+  }
+  .wl-timer[data-size="full"] .wl-timer-stop {
+    width: auto;
+  }
+  .wl-workarea {
+    padding: 0;
+  }
+  .wl-sheet {
+    min-height: 0;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .wl-demo {
+    padding: 16px var(--space-4) 0;
+  }
+  .wl-main {
+    padding: var(--space-5) var(--wl-gutter, var(--space-4)) var(--space-6);
+  }
+}
+
+/* ---- Pages ---- */
+
+.wl-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+.wl-page-header h1 {
+  margin: 0;
+  line-height: 1.2;
+}
+/* A page's tabs sit closer to its title than the content does to the tabs. */
+.wl-page-header + .wl-tabs-frame {
+  margin-top: calc(var(--space-4) - var(--space-5));
+}
+.wl-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wl-label {
+  display: block;
+  margin-bottom: var(--wl-label-gap);
+  color: var(--wl-ink);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-2);
+  font-weight: 500;
+}
+
+/* The signed-out screens: sign in, set up, accept an invite. */
+.wl-auth {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  box-sizing: border-box;
+}
+.wl-auth-inner {
+  width: 100%;
+  max-width: 28rem;
+}
+.wl-auth-brand {
+  margin: 0 0 var(--space-5);
+  color: var(--accent-11);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.wl-auth-intro {
+  margin-bottom: var(--space-5);
+  color: var(--wl-muted);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-2);
+}
+.wl-auth-intro p {
+  margin: 0 0 var(--space-2);
+}
+.wl-auth-logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 220px;
+  margin-bottom: var(--space-5);
+  object-fit: contain;
+}
+
+.wl-link {
+  color: var(--accent-11);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* A link that is the only control in its spot (not inside a sentence): a 24px-tall target. */
+.wl-link-alone {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+/* A link inside a Notice reads in the notice's own text color, which is tuned for contrast on its tint. */
+.rt-CalloutRoot .wl-link {
+  color: inherit;
+}
+/* A small heading over a group of details ("Bill to", "Running now"). */
+.wl-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Key numbers on a page (Stats in ui.tsx). */
+.wl-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-4) var(--space-6);
+  padding-block: var(--space-4);
+  border-block: 1px solid var(--wl-hairline);
+}
+/* A total: a day's, a week's. */
+.wl-total {
+  font-size: var(--font-size-5);
+  line-height: var(--line-height-5);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The week strip on the day view: navigation between hairlines, not a box. */
+.wl-weekstrip-frame {
+  border-block: 1px solid var(--wl-hairline);
+}
+/* The week strip on the day view. */
+.wl-weekstrip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) auto;
+  text-align: center;
+}
+.wl-weekstrip .wl-num {
+  white-space: nowrap;
+}
+.wl-weekstrip .wl-weekstrip-week {
+  padding-inline: var(--space-3);
+}
+@media (max-width: 39.999rem) {
+  .wl-weekstrip a,
+  .wl-weekstrip div {
+    font-size: var(--font-size-1);
+  }
+  .wl-weekstrip .wl-weekstrip-week {
+    padding-inline: var(--space-2);
+  }
+  /* A day's total of 10 hours or more ("75:30") must fit its cell without touching the next: smaller figures, tighter. */
+  .wl-weekstrip a .wl-num {
+    font-size: 0.6875rem;
+    letter-spacing: -0.03em;
+  }
+  .wl-weekstrip a {
+    min-width: 0;
+    padding-inline: 0;
+  }
+}
+.wl-weekstrip a,
+.wl-weekstrip div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--wl-ink);
+  text-decoration: none;
+  font-size: var(--font-size-2);
+}
+.wl-weekstrip a:hover {
+  background: var(--gray-a2);
+}
+.wl-weekstrip a[aria-current="date"] {
+  border-bottom-color: var(--accent-indicator);
+  background: var(--accent-a2);
+}
+.wl-weekstrip .wl-weekstrip-day {
+  color: var(--wl-muted);
+  font-size: var(--font-size-1);
+}
+.wl-weekstrip .wl-weekstrip-today {
+  color: var(--accent-11);
+  font-weight: 600;
+}
+.wl-weekstrip .wl-weekstrip-week {
+  border-left: 1px solid var(--wl-hairline);
+}
+
+/* The running timer on the day view. */
+.wl-running {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-3);
+  background: var(--accent-a2);
+}
+/* Tabular figures, so the clock doesn't jiggle as it ticks. */
+.wl-clock {
+  font-size: var(--font-size-8);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A checkbox in a row of labeled fields: centered on the row of inputs, not on the labels above them. */
+.wl-check-aligned {
+  display: flex;
+  align-items: center;
+  min-height: var(--space-7);
+  margin-top: calc(var(--line-height-2) + var(--wl-label-gap));
+}
+@media (min-width: 520px) {
+  .wl-check-aligned {
+    min-height: var(--space-6);
+  }
+}
+
+/* On a phone the Task list is as wide as the other fields; the link and Billable sit below it. */
+@media (max-width: 39.999rem) {
+  .wl-task-picker {
+    width: 100%;
+    align-items: stretch;
+  }
+  .wl-check-aligned {
+    margin-top: 0;
+    min-height: 40px;
+  }
+}
+
+.wl-entry-form {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+  /* On a phone the hint sits directly under the Duration field it is about. */
+  grid-template-areas: "project" "notes" "duration" "hint" "submit" "extras";
+}
+.wl-entry-hint {
+  grid-area: hint;
+  margin-top: calc(var(--space-2) * -1);
+}
+@media (min-width: 40rem) {
+  .wl-entry-form {
+    /* The button is as wide as its words; Notes takes the room (WRK-121). */
+    grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) 6.5rem max-content;
+    grid-template-areas: "project notes duration submit" "extras extras hint hint";
+    align-items: end;
+  }
+  .wl-entry-hint {
+    margin-top: 0;
+    align-self: center;
+    /* Its length mustn't widen the button's column. */
+    contain: inline-size;
+  }
+}
+
+.wl-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--wl-hairline);
+}
+.wl-rows > .wl-row:last-child {
+  border-bottom: 0;
+}
+.wl-row[data-running="true"] {
+  background: var(--accent-a2);
+}
+/* Time entries line up at the top, so the duration and Edit sit at the top of a tall row. */
+.wl-row-top {
+  align-items: flex-start;
+}
+/* In a top-aligned row the quiet buttons' text sits on the first line, beside the name and the
+   figure: the 32 px buttons reach 6 px above and below the 20 px line (QA2-27). */
+.wl-row-top > .wl-row-actions {
+  margin-block: calc((var(--line-height-2) - var(--space-6)) / 2);
+}
+.wl-notes {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.wl-notes-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.wl-row-main {
+  flex: 1 1 10rem;
+  min-width: 0;
+  /* Long names wrap rather than being cut off. */
+  overflow-wrap: anywhere;
+}
+.wl-row-time,
+.wl-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Approvals: the hours sit in one column, whatever the actions at the right say. */
+.wl-approval-hours {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  text-align: right;
+}
+@media (min-width: 40rem) {
+  .wl-approval-hours {
+    flex: none;
+    width: 6.5rem;
+  }
+  .wl-approval-actions {
+    flex: none;
+    width: 14rem;
+    justify-content: flex-end;
+  }
+}
+/* A row open for editing: a faint tint of the accent, with its line down the left. */
+.wl-editor {
+  background: var(--accent-a2);
+  box-shadow: inset 2px 0 0 var(--accent-indicator);
+}
+.wl-editor-top {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 40rem) {
+  .wl-editor-top {
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  }
+}
+.wl-row-total {
+  margin: 0;
+  border-top: 1px solid var(--wl-hairline);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+/* A box that scrolls sideways and can be focused to scroll it with the keyboard. Its ring is drawn inside, where the card around it can't clip it. */
+.wl-scroller {
+  position: relative;
+  overflow-x: auto;
+  /* The sticky first column of a table stacks inside this box, so the card's rounded border and corners stay on top of it. */
+  isolation: isolate;
+}
+.wl-scroller:focus-visible {
+  outline-offset: -2px !important;
+}
+
+/* The week as a timesheet. */
+.wl-grid {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+  font-size: var(--font-size-2);
+}
+.wl-grid th,
+.wl-grid td {
+  padding: var(--space-2) var(--space-1);
+  text-align: center;
+  font-weight: 400;
+}
+.wl-grid thead tr,
+.wl-grid tbody tr {
+  border-bottom: 1px solid var(--wl-hairline);
+}
+.wl-grid thead th {
+  color: var(--wl-muted);
+}
+.wl-grid th:first-child,
+.wl-grid td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--wl-paper);
+  padding-inline: var(--space-4);
+  text-align: left;
+}
+.wl-grid th:last-child,
+.wl-grid td:last-child {
+  padding-inline: var(--space-4);
+  text-align: right;
+}
+.wl-grid tfoot th,
+.wl-grid tfoot td {
+  padding-block: var(--space-3);
+  font-weight: 500;
+}
+.wl-grid [data-today="true"] {
+  background: var(--accent-a2);
+}
+.wl-grid thead a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.wl-grid thead a:hover {
+  color: var(--wl-ink);
+}
+.wl-grid thead a[aria-current="date"] {
+  color: var(--accent-11);
+  font-weight: 600;
+}
+.wl-cell {
+  width: 4.75rem;
+  text-align: right;
+}
+/* Week cells: a faint fill and an underline at 3:1 instead of a full box each, so a row of seven reads as one line (WRK-121). */
+.rt-TextFieldRoot.wl-cell {
+  background-color: var(--gray-a2);
+  box-shadow: inset 0 -1px 0 0 var(--wl-control);
+  border-radius: var(--radius-1) var(--radius-1) 0 0;
+}
+.rt-TextFieldRoot.wl-cell:hover {
+  box-shadow: inset 0 -2px 0 0 var(--wl-ink);
+}
+.wl-cell input {
+  padding-right: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+.wl-cell-link {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 32px;
+  min-width: 4.75rem;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border-radius: var(--radius-2);
+  color: var(--wl-muted);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.wl-cell-link:hover {
+  color: var(--wl-ink);
+  background: var(--gray-a3);
+}
+.wl-cell-link[data-several="true"] {
+  border: 1px dashed var(--wl-control);
+}
+@media (max-width: 47.999rem) {
+  .wl-grid th:first-child,
+  .wl-grid td:first-child {
+    padding-inline: var(--space-3);
+    max-width: 7.5rem;
+    border-right: 1px solid var(--wl-hairline);
+  }
+}
+.wl-scroll-fade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 40px;
+  border-radius: 0 var(--radius-4) var(--radius-4) 0;
+  background: linear-gradient(to left, var(--gray-a5), transparent);
+  pointer-events: none;
+}
+
+/* ---- Lists, forms and tables of the other screens ---- */
+
+/* Secondary text in a row that may be long (an email address): it wraps instead of being cut off. */
+.wl-wrap {
+  overflow-wrap: anywhere;
+}
+
+/* A small label within a line of text ("Non-billable"). */
+.wl-inline-badge {
+  margin-left: var(--space-1);
+  vertical-align: 1px;
+}
+
+/* A collapsed list under the main one (archived clients). */
+.wl-archived > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-2);
+  color: var(--wl-muted);
+  font-size: var(--font-size-2);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.wl-archived > summary::-webkit-details-marker {
+  display: none;
+}
+.wl-archived > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+.wl-archived[open] > summary::before {
+  transform: rotate(45deg);
+}
+.wl-archived > summary:hover {
+  color: var(--wl-ink);
+}
+
+/* An expense's fields. A phone has two columns; from 768px it is Date, Project, Category and
+   Amount on one line, then Notes, then the checkboxes side by side with the button. */
+.wl-expense-form {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+.wl-expense-notes,
+.wl-expense-actions {
+  grid-column: 1 / -1;
+}
+.wl-expense-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+.wl-expense-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-5);
+}
+@media (min-width: 48rem) {
+  .wl-expense-form {
+    grid-template-columns: 10rem minmax(0, 1fr) minmax(0, 11rem) 8rem;
+  }
+}
+
+/* A link that reads as text until pointed at (names in lists and tables). */
+.wl-plain-link {
+  color: inherit;
+  text-decoration: none;
+}
+.wl-plain-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A day in a list that spans several days (Expenses): the date, and its total at the right. */
+.wl-group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) 0;
+  color: var(--wl-muted);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-2);
+  font-weight: 500;
+}
+section:not(:first-child) > .wl-group-title {
+  border-top: 1px solid var(--wl-hairline);
+}
+
+/* Tools above a card's table: the group switcher in Reports. */
+.wl-card-head {
+  border-bottom: 1px solid var(--wl-hairline);
+}
+@media (max-width: 39.999rem) {
+  /* On a phone the switcher is as wide as the card, its choices sharing the width. */
+  .wl-card-head .rt-SegmentedControlRoot {
+    width: 100%;
+    min-width: 0;
+  }
+  /* Four choices share the card's width: they may be narrower than their words' natural width. */
+  .wl-card-head .rt-SegmentedControlItem {
+    min-width: 0;
+    padding-inline: 0;
+  }
+  .wl-card-head .rt-SegmentedControlItemLabel {
+    padding-inline: var(--space-1);
+  }
+}
+
+/* A titled group of fields in a form. */
+.wl-fieldset {
+  display: block;
+}
+.wl-legend {
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-3);
+  font-weight: 600;
+}
+
+.wl-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.wl-right input {
+  text-align: right;
+}
+/*
+ * A person's controls (rate, role, actions) share one bottom line, so the rate box lines up
+ * with the role menu under its caption; the "Saved." note sits below it, outside the layout.
+ */
+.wl-person-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-1) var(--space-4);
+}
+/* From tablet width the controls sit in fixed columns, so the rate boxes, role menus and Edit
+   line up from row to row whatever the role says or which actions a row has (QA2-13). */
+@media (min-width: 48rem) {
+  .wl-person-controls {
+    display: grid;
+    grid-template-columns: 9rem 8rem 6.5rem;
+  }
+  .wl-person-controls .rt-SelectTrigger {
+    width: 100%;
+  }
+}
+.wl-rate {
+  width: 9rem;
+  position: relative;
+}
+.wl-rate > .wl-rate-note {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+/* A small caption above a compact control in a row (the billable rate in People). */
+.wl-small-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--wl-muted);
+  font-size: var(--font-size-1);
+  line-height: var(--line-height-1);
+}
+.wl-off {
+  opacity: 0.7;
+}
+.wl-block {
+  display: block;
+}
+.wl-plain-list {
+  margin: 0;
+  padding: 0;
+}
+.wl-scroll-list {
+  max-height: 12rem;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.wl-clip {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one-time invite link, set apart by a tint and the accent line. */
+.wl-linkcard {
+  padding: var(--space-4);
+  border-radius: var(--radius-3);
+  background: var(--accent-a2);
+  box-shadow: inset 2px 0 0 var(--accent-indicator);
+}
+
+/* Tables are Radix's, scrolling in the region around them (see TableRegion in ui.tsx). */
+.wl-table .rt-ScrollAreaRoot,
+.wl-table .rt-ScrollAreaViewport {
+  overflow: visible !important;
+}
+.wl-table .rt-ScrollAreaScrollbar {
+  display: none;
+}
+.wl-table .rt-TableRootTable {
+  min-width: var(--wl-table-min, 32rem);
+}
+.wl-table .rt-TableColumnHeaderCell {
+  color: var(--wl-muted);
+  font-size: var(--font-size-1);
+  font-weight: 500;
+}
+.wl-table .rt-TableRowHeaderCell {
+  font-weight: 400;
+}
+.wl-table .rt-TableCell:first-child {
+  padding-left: var(--space-4);
+}
+.wl-table .rt-TableCell:last-child {
+  padding-right: var(--space-4);
+}
+.wl-table .rt-TableCell {
+  --table-row-box-shadow: inset 0 -1px var(--wl-hairline);
+}
+.wl-table .rt-TableBody .rt-TableRow:last-child .rt-TableCell {
+  box-shadow: none;
+}
+/* The cue that a table has more columns off to the right. */
+.wl-table-frame {
+  position: relative;
+}
+.wl-table-fade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 40px;
+  background: linear-gradient(to left, var(--gray-a5), transparent);
+  pointer-events: none;
+}
+.wl-table-hint {
+  padding: var(--space-1) var(--space-4) var(--space-2);
+  text-align: right;
+}
+.wl-framed {
+  overflow: hidden;
+  border-radius: var(--radius-3);
+  box-shadow: inset 0 0 0 1px var(--wl-hairline);
+}
+
+/* A share of the largest row, drawn under a name in a report. */
+.wl-bar {
+  height: 6px;
+  margin-top: var(--space-1);
+  border-radius: 9999px;
+  background: var(--wl-hairline);
+  overflow: hidden;
+}
+.wl-bar > div {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--accent-indicator);
+}
+
+/* A budget row: the name and what is used, then the bar. */
+.wl-budget {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+@media (min-width: 40rem) {
+  .wl-budget {
+    grid-template-columns: minmax(0, 1fr) 14rem;
+    align-items: center;
+  }
+}
+
+/* ---- Invoice ---- */
+
+/* The invoice is drawn as a sheet of paper: a soft shadow rather than a frame, apart from the editing panel above it. */
+.wl-invoice {
+  --card-padding: 20px;
+  --card-background-color: var(--wl-card);
+  --base-card-border-radius: var(--radius-3);
+  --base-card-surface-box-shadow: 0 0 0 1px var(--gray-a3), 0 1px 2px var(--gray-a3), 0 8px 24px -8px var(--gray-a5);
+  border: 0;
+}
+@media (min-width: 40rem) {
+  .wl-invoice {
+    --card-padding: 40px;
+  }
+}
+.wl-invoice-logo {
+  height: 48px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+}
+.wl-details,
+.wl-totals {
+  --data-list-label-width: auto;
+}
+.wl-details .rt-DataListLabel {
+  min-width: 4.5rem;
+}
+.wl-totals {
+  width: 100%;
+  max-width: 20rem;
+  margin-left: auto;
+}
+.wl-totals .rt-DataListValue {
+  justify-content: flex-end;
+}
+.wl-grand-total {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--wl-ink);
+}
+.wl-grand-total .rt-DataListLabel {
+  color: var(--wl-ink);
+  font-weight: 500;
+}
+.wl-grand-total .rt-DataListValue {
+  font-size: var(--font-size-7);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wl-invoice-notes {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--wl-hairline);
+}
+.wl-invoice .wl-table .rt-TableCell:first-child {
+  padding-left: 0;
+}
+.wl-invoice .wl-table .rt-TableCell:last-child {
+  padding-right: 0;
+}
+@media (min-width: 40rem) {
+  .wl-for-work {
+    text-align: right;
+  }
+  .wl-for-work .wl-eyebrow {
+    justify-content: flex-end;
+  }
+}
+
+/* ---- Settings pages ---- */
+
+/* A section: title and description on the left, controls on the right (stacked on a phone). */
+.wl-settings-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+}
+.wl-settings-section + .wl-settings-section {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--wl-hairline);
+}
+@media (min-width: 48rem) {
+  .wl-settings-section {
+    grid-template-columns: 13.75rem minmax(0, 1fr);
+  }
+}
+/* Save at the foot of a settings page. */
+.wl-form-footer {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--wl-hairline);
+}
+
+/* ---- Appearance ---- */
+
+/* The color swatch, as tall as the fields beside it. */
+.wl-color {
+  width: 3.5rem;
+  height: var(--space-7);
+  padding: 3px;
+  border: 1px solid var(--wl-control);
+  border-radius: var(--radius-2);
+  background: var(--wl-paper);
+  cursor: pointer;
+}
+@media (min-width: 48rem) {
+  .wl-color {
+    height: var(--space-6);
+  }
+}
+.wl-logo-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 7rem;
+  max-width: 15rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px dashed var(--wl-control);
+  border-radius: var(--radius-2);
+}
+.wl-logo-box img {
+  max-height: 100%;
+  width: auto;
+  object-fit: contain;
+}
+/* The preview: one bordered panel, with a small copy of the header across its top. */
+.wl-preview {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-3);
+  background: var(--wl-shell);
+  box-shadow: inset 0 0 0 1px var(--wl-hairline);
+}
+.wl-preview-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 6px 0;
+}
+.wl-preview-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wl-preview-sheet {
+  border: 1px solid var(--wl-hairline);
+  border-radius: 10px;
+  background: var(--wl-paper);
+}
+@media (max-width: 30rem) {
+  .wl-preview {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Import ---- */
+
+.wl-summary {
+  border-radius: var(--radius-3);
+  background: var(--wl-paper);
+  box-shadow: inset 0 0 0 1px var(--wl-hairline);
+}
+
+/* Anything that is only for the screen: print leaves it out. */
+
+/* Printing (invoices are saved as PDF from the print dialog): always light, no app chrome. */
+@media print {
+  body {
+    background: white;
+  }
+  .wl-sidebar,
+  .wl-skip,
+  .wl-no-print {
+    display: none !important;
+  }
+  .wl-invoice {
+    --card-padding: 0px;
+    box-shadow: none;
+    background: none;
+  }
+  .wl-invoice::after {
+    display: none;
+  }
+  .wl-main {
+    padding: 0;
+    max-width: none;
+  }
+  .wl-app {
+    display: block;
+    background: none;
+  }
+  .wl-workarea {
+    padding: 0;
+  }
+  .wl-sheet {
+    border: 0;
+    box-shadow: none;
+    min-height: 0;
+  }
+  @page {
+    margin: 16mm;
+  }
+}
+
+/* Reports: hours over the period. Billable bars take the accent; the rest stay quiet. */
+.wl-chart { margin: 0; }
+.wl-chart-svg { display: block; width: 100%; height: 9rem; }
+.wl-chart-billable { fill: var(--accent-9); background: var(--accent-9); }
+.wl-chart-other { fill: var(--gray-6); background: var(--gray-6); }
+.wl-chart-axis { position: relative; height: 1.25rem; font-size: var(--font-size-1); color: var(--gray-11); }
+.wl-chart-axis span { position: absolute; white-space: nowrap; }
+.wl-chart-key { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: var(--font-size-1); color: var(--gray-11); margin-top: var(--space-1); }
+.wl-chart-key i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 2px; vertical-align: -1px; margin-right: 0.25rem; }
+
+/* New invoice: the choices beside a preview of the invoice (stacked on narrow screens). */
+.wl-new-invoice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (min-width: 64rem) {
+  .wl-new-invoice {
+    grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+/* Reports → Profitability: revenue up, cost down, profit as a line. */
+.wl-chart-svg-wide { display: block; width: 100%; height: auto; }
+.wl-chart-cost { fill: var(--gray-9); background: var(--gray-9); }
+.wl-chart-zero { stroke: var(--wl-control); stroke-width: 1; }
+.wl-chart-profit { fill: var(--gray-12); background: var(--gray-12); }
+.wl-chart-profit-line { fill: none; stroke: var(--gray-12); stroke-width: 2; stroke-linejoin: round; }
+
+/* A week's name between previous and next buttons (Team, and the Approvals week filter). */
+.wl-week-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Hours worked as parts of the hours someone usually works (Team). */
+.wl-capbar {
+  display: flex;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--wl-hairline);
+  overflow: hidden;
+}
+/* Neutral like every non-budget bar, so a red or yellow accent never reads as a warning (QA2-10). */
+.wl-capbar-billable { background: var(--gray-12); }
+.wl-capbar-other { background: var(--gray-8); }
+.wl-team-figures {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.wl-filter { max-width: 20rem; margin-bottom: var(--space-3); }
+
+/* Results that are being replaced: still readable, clearly not current (Reports). */
+.wl-updating {
+  opacity: 0.45;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-updating { transition: none; }
+}
+
+/* An editing panel (a draft invoice's details): a tinted area, so editing reads apart from the document it changes. */
+.wl-panel {
+  background: var(--gray-a2);
+  border-radius: var(--radius-3);
+  padding: var(--space-5);
+}
+@media (max-width: 39.999rem) {
+  .wl-panel {
+    padding: var(--space-4);
+  }
+}
+
+/* ---- Direction B: page header, key numbers, timesheet (WRK-124, WRK-125) ---- */
+
+/* How far the sheet's content sits from its edges; the page header's rule runs edge to edge. */
+.wl-main {
+  --wl-gutter: 40px;
+}
+@media (max-width: 74.999rem) {
+  .wl-main {
+    --wl-gutter: var(--space-5);
+  }
+}
+@media (max-width: 39.999rem) {
+  .wl-main {
+    --wl-gutter: var(--space-4);
+  }
+}
+.wl-page-header {
+  margin: 0 calc(-1 * var(--wl-gutter)) 8px;
+  padding: 0 var(--wl-gutter) 24px;
+  border-bottom: 1px solid var(--wl-hairline);
+}
+/* With tabs under it, the tabs' own rule closes the header. */
+.wl-page-header:has(+ .wl-tabs-frame) {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.wl-page-header h1 {
+  font-size: 28px;
+  line-height: 34px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+@media (max-width: 39.999rem) {
+  .wl-page-header h1 {
+    font-size: 24px;
+    line-height: 30px;
+  }
+}
+.wl-eyebrow {
+  margin-bottom: 6px;
+  color: var(--wl-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+/* Previous and next, as one control. */
+.wl-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--gray-a6);
+  border-radius: 8px;
+}
+.wl-stepper .rt-IconButton,
+.wl-stepper .rt-Button {
+  margin: 0;
+}
+/* "This week" while on this week: in place, quietly, so the arrows don't jump. */
+.wl-stepper .rt-Button[aria-disabled="true"] {
+  color: var(--gray-11);
+  cursor: default;
+}
+
+/* Key numbers on a light gray band, divided by hairlines. */
+.wl-stats-band {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-subtle);
+}
+.wl-stats-band > * {
+  padding: 18px 24px 20px;
+}
+.wl-stats-band > * + * {
+  border-left: 1px solid var(--wl-hairline);
+}
+.wl-stats-band .wl-stat-value {
+  font-size: 26px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+}
+.wl-stats-band .rt-ProgressRoot {
+  margin-top: 6px;
+}
+@media (max-width: 39.999rem) {
+  .wl-stats-band {
+    grid-template-columns: 1fr;
+  }
+  .wl-stats-band > * {
+    padding: 12px 16px 14px;
+  }
+  .wl-stats-band > * + * {
+    border-left: 0;
+    border-top: 1px solid var(--wl-hairline);
+  }
+  .wl-stats-band .wl-stat-value {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+/* On touch screens the arrows are 44px targets; the frame around them would only make a tall box. */
+@media (pointer: coarse) {
+  .wl-stepper {
+    padding: 0;
+    border: 0;
+  }
+}
+
+/* The week grid: no frame; a rule under the days, hairlines between rows, totals on a gray band. */
+.wl-grid {
+  font-size: 14px;
+}
+.wl-grid thead th {
+  vertical-align: bottom;
+  padding-block: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.wl-grid thead tr {
+  border-bottom-color: var(--gray-a6);
+}
+.wl-grid thead a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wl-day-name {
+  line-height: 16px;
+}
+.wl-day-num {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--wl-ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wl-grid thead a:hover .wl-day-num {
+  background: var(--gray-a3);
+}
+.wl-grid thead a[aria-current="date"] .wl-day-num {
+  background: var(--accent-9);
+  color: var(--accent-contrast);
+}
+.wl-grid th:first-child,
+.wl-grid td:first-child {
+  padding-inline: 12px var(--space-4);
+}
+.wl-grid tbody th,
+.wl-grid tbody td {
+  padding-block: 12px;
+}
+.wl-week-project {
+  display: block;
+  color: var(--wl-ink);
+  font-weight: 500;
+}
+.wl-week-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--wl-muted);
+  font-size: 13px;
+}
+.wl-week-total {
+  font-size: 15px;
+  font-weight: 600;
+}
+.rt-TextFieldRoot.wl-cell {
+  height: 36px;
+  border-radius: 6px 6px 2px 2px;
+}
+.wl-cell input {
+  padding-inline: 4px;
+  text-align: center;
+}
+/* The box being typed in: white, with the focus ring and a soft halo of the accent. */
+.rt-TextFieldRoot.wl-cell:focus-within {
+  background-color: var(--wl-paper);
+  box-shadow: 0 0 0 5px var(--accent-a4);
+}
+.wl-cell-link {
+  justify-content: center;
+  min-height: 36px;
+}
+/* The day the running timer adds to. */
+.wl-cell-link[data-running] {
+  align-items: center;
+  background: var(--green-a3);
+  box-shadow: inset 0 -2px 0 var(--green-9);
+  color: var(--green-11);
+  font-weight: 500;
+}
+.wl-grid tfoot tr {
+  background: var(--wl-subtle);
+}
+.wl-grid tfoot th:first-child,
+.wl-grid tfoot td:first-child {
+  background: var(--wl-subtle);
+}
+.wl-grid tfoot th,
+.wl-grid tfoot td {
+  padding-block: 16px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.wl-grid tfoot [data-today="true"] {
+  color: var(--accent-11);
+}
+
+/* ---- Direction B, shared across every screen (WRK-127) ---- */
+
+/* Section headings: one size and weight everywhere. */
+.wl-main h2.rt-Heading.rt-r-size-3 {
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+/* A page's tabs close its header: the strip runs edge to edge with the header's rule under it. */
+.wl-page-header + .wl-tabs-frame {
+  margin: calc(var(--space-4) - var(--space-5)) calc(-1 * var(--wl-gutter)) 8px;
+  padding-inline: var(--wl-gutter);
+  border-bottom: 1px solid var(--wl-hairline);
+}
+.wl-page-header + .wl-tabs-frame .rt-TabNavList {
+  box-shadow: none;
+}
+.wl-tabs .rt-TabNavLink {
+  font-size: 14px;
+}
+
+/* Tables: the column names on a light gray band, the rows divided by hairlines. */
+.wl-table .rt-TableColumnHeaderCell {
+  background: var(--wl-subtle);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+/* The signed-out screens (sign in, set up, accept an invite, the demo): one white sheet on the gray shell. */
+.wl-auth {
+  background: var(--wl-shell);
+}
+.wl-auth-inner {
+  max-width: 30rem;
+  padding: 32px;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-paper);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+}
+@media (max-width: 39.999rem) {
+  .wl-auth {
+    align-items: flex-start;
+    padding: var(--space-4);
+  }
+  .wl-auth-inner {
+    padding: 24px 20px;
+  }
+}
+/* In a full-width tab strip the fades sit at the ends of the tabs, inside the strip's padding. */
+.wl-page-header + .wl-tabs-frame .wl-tabs-fade-left {
+  left: var(--wl-gutter);
+}
+.wl-page-header + .wl-tabs-frame .wl-tabs-fade-right {
+  right: var(--wl-gutter);
+}
+
+/* Reports: the period and filters on a light gray band; today marked on the chart; the table's total row. */
+.wl-filters {
+  padding: 16px 20px;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-subtle);
+}
+.wl-chart {
+  position: relative;
+  margin-top: var(--space-4);
+}
+.wl-chart-today {
+  position: absolute;
+  top: -1.4rem;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.wl-chart-today::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  height: 9rem;
+  border-left: 1px solid var(--accent-9);
+}
+.wl-table-total .rt-TableRowHeaderCell,
+.wl-table-total .rt-TableCell {
+  background: var(--wl-subtle);
+  font-weight: 600;
+}
+
+/* Project overview: the work on the left, who and what it earned on the right. */
+.wl-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-6) 40px;
+  align-items: start;
+}
+@media (max-width: 63.999rem) {
+  .wl-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.wl-columns-main,
+.wl-columns-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  min-width: 0;
+}
+.wl-columns-aside {
+  gap: 16px;
+}
+/* A list with hairlines between its rows and above the first. */
+.wl-lined {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--wl-hairline);
+}
+.wl-lined > .wl-row {
+  border-bottom: 1px solid var(--wl-hairline);
+}
+.wl-brief-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  min-height: 56px;
+  padding-block: 10px;
+}
+.wl-brief-main {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  min-width: 0;
+}
+.wl-brief-notes {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wl-brief-date {
+  flex: 0 0 6.5rem;
+}
+.wl-brief-who {
+  flex: 0 0 8rem;
+}
+.wl-brief-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  text-align: right;
+}
+.wl-side-panel {
+  padding: 20px;
+  border: 1px solid var(--wl-hairline);
+  border-radius: 12px;
+  background: var(--wl-subtle);
+}
+.wl-team-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wl-team-hours li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+}
+.wl-team-hours .wl-avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--gray-a3);
+  color: var(--wl-muted);
+}
+.wl-team-hours .wl-bar {
+  grid-column: 2 / -1;
+  margin-top: 6px;
+}
+.wl-side-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+}
+.wl-side-figure .wl-num {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.wl-side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--wl-hairline);
+}
+.wl-side-list > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+.wl-side-list dt {
+  color: var(--wl-muted);
+}
+.wl-side-list dd {
+  margin: 0;
+  font-weight: 500;
+}
+/* Blocks of a page that sit one under another with the page's own spacing. */
+.wl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+/* The invoice page's bar: what the document is and what to do with it, closed by the header's rule. */
+/* A link in the eyebrow (Projects, above a project's name) is a 24 px target (WCAG 2.5.8). */
+.wl-eyebrow a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* ---- Fixes from the QA sweep at 1024, 768 and 375 px ---- */
+
+/* Four key numbers stay on one row down to a small laptop. */
+.wl-stats-band {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+/* On a phone, two to a row instead of a tall stack. */
+@media (max-width: 39.999rem) {
+  .wl-stats-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wl-stats-band > * + * {
+    border-top: 0;
+  }
+  .wl-stats-band > :nth-child(even) {
+    border-left: 1px solid var(--wl-hairline);
+  }
+  .wl-stats-band > :nth-child(n + 3) {
+    border-top: 1px solid var(--wl-hairline);
+  }
+}
+/* The project overview goes to one column before the work column gets cramped. */
+@media (max-width: 79.999rem) {
+  .wl-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Money on the invoice never breaks across lines. */
+.wl-invoice .wl-num,
+.wl-invoice .rt-DataListValue {
+  white-space: nowrap;
+}
+/* The week grid's project names keep a readable width; the grid scrolls sideways instead. */
+@media (min-width: 48rem) {
+  .wl-grid tbody th:first-child {
+    min-width: 9rem;
+  }
+}
+
+/* ---- Fixes from QA round 2 ---- */
+
+/* A figure in a number band never breaks across lines; it shrinks a little on narrow screens. */
+.wl-stats-band .wl-stat-value {
+  white-space: nowrap;
+  font-size: clamp(20px, 1rem + 0.7vw, 26px);
+}
+/* The band's bars stay thin, however tall the card next to them. */
+.wl-stats-band .rt-ProgressRoot {
+  flex: none;
+  height: 6px;
+}
+/* Amber notes on the gray band keep 4.5:1. */
+.wl-stats-band .rt-Text[data-accent-color="amber"] {
+  color: var(--amber-12);
+}
+/* Group names in drop-downs and the email in the account menu: readable gray (4.5:1). */
+.rt-SelectLabel,
+.rt-BaseMenuLabel {
+  color: var(--wl-muted);
+}
+/* A page's tabs wrap onto a second row instead of hiding off the edge (Manage has eleven). */
+@media (min-width: 40rem) {
+  .wl-page-header + .wl-tabs-frame .rt-TabNavRoot {
+    width: auto;
+  }
+  .wl-page-header + .wl-tabs-frame .rt-TabNavList {
+    flex-wrap: wrap;
+  }
+}
+/* Share bars (reports, team hours) are neutral ink, so a customer's accent never reads as a warning. */
+.wl-bar > div {
+  background: var(--gray-11);
+}
+
+/* "Swipe for more days" sits under the grid's right edge, where the hidden days are. */
+.wl-scroll-hint {
+  text-align: right;
+}
+
+/* The Team band's bar sits inside its card, under the figure (QA2-19). */
+.wl-stats-band .wl-capbar {
+  margin-top: 6px;
+}
+
+/* Days without time in the week's total row read 0:00, muted (QA2-22). */
+.wl-zero {
+  color: var(--wl-muted);
+}
+/* In a person's week the rule falls between days, not between the entries of one day. */
+.wl-day-block + .wl-day-block {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--wl-hairline);
+}
+
+/* The Today marker sits at the right edge of today's bar, never through it. At the very end of the chart it hangs back inside. */
+.wl-chart-today[data-edge="end"] {
+  transform: translateX(-100%);
+}
+.wl-chart-today[data-edge="end"]::after {
+  left: auto;
+  right: 0;
+  border-left: 0;
+  border-right: 1px solid var(--accent-9);
+}
+
+/* In dark mode an uploaded logo (often dark ink on transparent) sits on a light plate wherever it shows on a dark surface. */
+.dark .wl-brand img,
+.dark .wl-auth-logo {
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+/* The Team page's Schedule (WRK-139): people by weeks, and a side panel to plan one week. */
+.wl-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+.wl-schedule-grid {
+  flex: 999 1 40rem;
+  min-width: 0;
+}
+.wl-schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-2);
+}
+.wl-schedule-table caption {
+  text-align: left;
+  font-size: var(--font-size-1);
+  color: var(--wl-muted);
+  padding-bottom: var(--space-2);
+}
+.wl-schedule-table thead th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--font-size-1);
+  color: var(--wl-muted);
+  padding: var(--space-2) 6px;
+}
+.wl-schedule-table thead th:first-child { padding-left: 0; width: 12rem; }
+.wl-schedule-table thead th[aria-current] { color: var(--gray-12); font-weight: 600; }
+.wl-schedule-table tbody tr { border-top: 1px solid var(--wl-hairline); }
+.wl-schedule-table tbody th {
+  text-align: left;
+  font-weight: 500;
+  padding: var(--space-3) var(--space-3) var(--space-3) 0;
+}
+.wl-schedule-table tbody th > span { display: block; font-weight: 400; }
+.wl-schedule-table td { padding: var(--space-2) 6px; }
+.wl-sched-cell {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--gray-6);
+  background: var(--color-panel-solid);
+  border-radius: var(--radius-3);
+  padding: var(--space-2) 10px;
+  font: inherit;
+  color: var(--gray-12);
+  cursor: pointer;
+}
+.wl-sched-cell:focus-visible { outline: 2px solid var(--focus-8); outline-offset: 1px; }
+.wl-sched-cell[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--gray-8); }
+.wl-sched-hours-line { white-space: nowrap; }
+.wl-sched-cell strong { font-weight: 600; }
+.wl-sched-of { color: var(--wl-muted); }
+.wl-sched-note { display: block; font-size: var(--font-size-1); color: var(--wl-muted); }
+.wl-sched-note-over { color: var(--red-11); font-weight: 500; }
+.wl-sched-full { border-color: var(--green-7); background: var(--green-2); }
+.wl-sched-over { border: 2px solid var(--red-9); background: var(--red-2); padding: 7px 9px; }
+.wl-sched-off { background: var(--gray-2); color: var(--wl-muted); }
+.wl-sched-empty { border-style: dashed; color: var(--wl-muted); }
+.wl-sched-some { border-color: var(--gray-6); }
+.wl-sched-legend { color: var(--wl-muted); }
+.wl-sched-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--gray-6);
+  vertical-align: -1px;
+  padding: 0;
+}
+.wl-sched-swatch.wl-sched-full { border-color: var(--green-7); }
+.wl-sched-swatch.wl-sched-over { border: 2px solid var(--red-9); }
+.wl-sched-swatch.wl-sched-empty { border-style: dashed; }
+.wl-sched-panel {
+  flex: 1 1 18rem;
+  max-width: 24rem;
+  border: 1px solid var(--wl-hairline);
+  border-radius: var(--radius-4);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-panel-solid);
+  box-shadow: var(--shadow-4);
+}
+.wl-sched-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+.wl-sched-hours {
+  width: 4.5rem;
+  height: var(--space-7);
+  border: 1px solid var(--gray-7);
+  border-radius: var(--radius-2);
+  padding: 0 10px;
+  font: inherit;
+  text-align: right;
+  background: var(--color-surface);
+  color: var(--gray-12);
+}
+.wl-sched-add { align-self: flex-start; }
+.wl-sched-panel-foot { border-top: 1px solid var(--wl-hairline); padding-top: var(--space-3); }
+
+/* "Planned for you this week" on the Time page (WRK-139). */
+.wl-plan {
+  border: 1px solid var(--wl-hairline);
+  border-radius: var(--radius-4);
+  padding: var(--space-4) var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+  max-width: 45rem;
+}
+.wl-plan-rows { display: grid; gap: var(--space-2); }
+.wl-plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-5);
+  align-items: center;
+}
+
+/* The one-time donation card on admins' Time screen (WRK-168). */
+.wl-donation {
+  margin-bottom: 24px;
+}

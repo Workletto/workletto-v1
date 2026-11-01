@@ -1,0 +1,1047 @@
+// Database schema for Workletto.
+//
+// Rules for every model added here:
+// - Business data belongs to one organization: give it an `organizationId`
+//   column and add the model to ORG_SCOPED_MODELS in src/server/db.ts.
+// - Migrations within a major version only add tables and columns.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Written once, by the first-run setup screen. The id can only be 1, so two
+// setup attempts racing each other cannot both succeed.
+model Installation {
+  id             Int      @id @default(1)
+  completedAt    DateTime @default(now())
+  // The organization created by setup. Its branding shows on the sign-in screen.
+  // Empty in the demo, which has many organizations and no setup.
+  organizationId String?
+
+  @@map("installation")
+}
+
+enum ColorMode {
+  system
+  light
+  dark
+}
+
+model Organization {
+  id                    String             @id @default(uuid())
+  name                  String
+  // Shown instead of the product name in the header, tab title and sign-in. Null = the product name.
+  appName               String?
+  // ISO 4217 code: the home currency. People's rates and costs, projects without a client and
+  // new clients use it; a client can have its own (WRK-135). Amounts are stored in hundredths.
+  currency              String             @default("USD")
+  // Home-currency value of one unit of each other currency clients use, in millionths
+  // ({ "EUR": 1080000 } is 1 EUR = 1.08 home). Only reports convert with it.
+  exchangeRates         Json               @default("{}")
+  // Printed on invoices.
+  address               String             @default("")
+  // Invoice settings (Manage → Invoices). New invoices are numbered prefix + the next
+  // number, zero-padded to invoiceNumberDigits, and start with the defaults below.
+  invoicePrefix         String             @default("")
+  invoiceNextNumber     Int                @default(1)
+  invoiceNumberDigits   Int                @default(4)
+  // Payment terms: due this many days after the issue date. 0 = on receipt.
+  invoiceDueDays        Int                @default(30)
+  invoiceTaxBasisPoints Int                @default(0)
+  invoiceTaxLabel       String             @default("Tax")
+  invoiceNotes          String             @default("")
+  // Late-payment reminders (WRK-146): days after the due date for the first one; 0 = off.
+  // Then one every 7 days, up to 3 per invoice.
+  invoiceReminderDays   Int                @default(0)
+  // Appearance. Null accent means the built-in color. Kept in the database so
+  // code updates never overwrite a customer's branding.
+  accentColor           String?
+  colorMode             ColorMode          @default(system)
+  logo                  Logo?
+  emailSettings         EmailSettings?
+  paymentSettings       PaymentSettings?
+  ssoSettings           SsoSettings?
+  timeOff               TimeOff[]
+  holidays              Holiday[]
+  scheduledWork         ScheduledWork[]
+  // Members' time off waits for an admin's or manager's approval (WRK-138).
+  timeOffApproval       Boolean            @default(false)
+  // People who sign in with a password must set up two-factor sign-in (WRK-147).
+  requireTwoFactor      Boolean            @default(false)
+  // Set only for demo workspaces, which are deleted after this time.
+  demoExpiresAt         DateTime?
+  // Timesheet approvals (src/server/timesheets.ts): off until an admin turns them on.
+  timesheetApprovals    Boolean            @default(false)
+  // For the Monday reminders. Taken from the admin's browser when they turn approvals on.
+  timeZone              String             @default("UTC")
+  // The Monday of the last week reminders were sent for, so each week is reminded once.
+  reminderWeek          DateTime?          @db.Date
+  // When an admin donated from, or dismissed, the one-time donation card (WRK-168). Null = not yet.
+  donationPromptDismissedAt DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  users                 User[]
+  invites               Invite[]
+  clients               Client[]
+  projects              Project[]
+  timeEntries           TimeEntry[]
+  projectMembers        ProjectMember[]
+  tasks                 Task[]
+  expenses              Expense[]
+  invoices              Invoice[]
+  invoiceLines          InvoiceLine[]
+  passwordResets        PasswordReset[]
+  auditEvents           AuditEvent[]
+  timesheetWeeks        TimesheetWeek[]
+  receipts              Receipt[]
+  payments              Payment[]
+  commonTasks           CommonTask[]
+  calendarSettings      CalendarSettings[]
+  customFields          CustomField[]
+  customFieldValues     CustomFieldValue[]
+  userGroups            UserGroup[]
+  userGroupMembers      UserGroupMember[]
+  projectTemplates      ProjectTemplate[]
+
+  invoiceSchedules InvoiceSchedule[]
+
+  @@index([demoExpiresAt])
+  @@map("organization")
+}
+
+// An organization's logo, stored exactly as uploaded after its type, size and
+// dimensions were checked (see src/server/logo.ts). Kept in Postgres so there
+// is no storage bucket to set up and backups include it.
+model Logo {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contentType    String
+  data           Bytes
+  width          Int
+  height         Int
+  updatedAt      DateTime     @updatedAt
+
+  @@map("logo")
+}
+
+// SMTP is the one way the app sends email; any service that offers SMTP works.
+enum EmailProvider {
+  smtp
+}
+
+// How an organization's app sends email. One row per organization; no row
+// means email is off. `secret` is the SMTP password,
+// encrypted (see src/server/secrets.ts) and never sent back to the browser.
+model EmailSettings {
+  id             String        @id @default(uuid())
+  organizationId String        @unique
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       EmailProvider
+  fromName       String        @default("")
+  fromEmail      String
+  smtpHost       String        @default("")
+  smtpPort       Int           @default(587)
+  // true: TLS from the start. false: STARTTLS when the server offers it.
+  smtpSecure     Boolean       @default(false)
+  smtpUser       String        @default("")
+  secret         String        @default("")
+  lastTestAt     DateTime?
+  lastError      String?
+  updatedAt      DateTime      @updatedAt
+
+  @@map("email_settings")
+}
+
+// Admins do everything. Managers also add and change clients and projects.
+// Members track their own time.
+enum Role {
+  admin
+  manager
+  member
+}
+
+// The four tables below are Better Auth's (user, session, account, verification).
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  emailVerified    Boolean           @default(false)
+  image            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organizationId   String
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role             Role              @default(member)
+  // Set when an admin turns the account off. The person can't sign in, and
+  // their time stays in the reports.
+  deactivatedAt    DateTime?
+  // This person's billable rate in cents per hour, for projects billed by person.
+  hourlyRate       Int?
+  // What an hour of this person's time costs the organization, in cents, for the
+  // profitability report. Only admins see or set it.
+  costRate         Int?
+  // The time this person is expected to work in a week, in seconds, for the Team page.
+  weeklyCapacity   Int               @default(144000)
+  // Two-factor sign-in (WRK-147), set by Better Auth's twoFactor plugin once the person confirms a code.
+  twoFactorEnabled Boolean           @default(false)
+  twoFactor        TwoFactor?
+  sessions         Session[]
+  accounts         Account[]
+  timeEntries      TimeEntry[]
+  projects         ProjectMember[]
+  tasks            Task[]
+  expenses         Expense[]
+  invite           Invite?
+  passwordReset    PasswordReset?
+  timesheetWeeks   TimesheetWeek[]
+  timeOff          TimeOff[]
+  scheduledWork    ScheduledWork[]
+  calendar         CalendarSettings?
+  groups           UserGroupMember[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("user")
+}
+
+// Calendar import (WRK-105): a person's own calendar link and the project and task they last
+// chose for each event title. The link is encrypted (secrets.ts) and fetched only when they ask.
+model CalendarSettings {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @unique
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  // The private iCal address, encrypted. Null when they only upload files.
+  url            String?
+  // { "Weekly sync": { "projectId": "…", "taskId": null } }
+  choices        Json         @default("{}")
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+  @@map("calendar_settings")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Signed in through single sign-on (WRK-147): the provider handles two-factor, so the app doesn't ask.
+  viaSso    Boolean  @default(false)
+
+  @@index([userId])
+  @@map("session")
+}
+
+// Two-factor sign-in (WRK-147), kept by Better Auth's twoFactor plugin. The authenticator secret is
+// encrypted with BETTER_AUTH_SECRET; the backup codes are stored only as keyed hashes (auth.ts).
+model TwoFactor {
+  id                      String    @id @default(uuid())
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // False until the person confirms a code from their app.
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+
+  @@map("two_factor")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// An invitation to join an organization. The admin passes the link on
+// themselves; the app sends no email. Only a hash of the link's token is kept.
+model Invite {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  role           Role         @default(member)
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  // Set when inviting someone who's already in the organization without a
+  // login (for example, people brought in by an import).
+  userId         String?
+  user           User?        @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, email])
+  @@unique([userId, organizationId])
+  @@map("invite")
+}
+
+// A one-time link to choose a new password, made by an admin (Manage → People).
+// Only the token's hash is stored, and each person has at most one live link.
+model PasswordReset {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @unique
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+  @@map("password_reset")
+}
+
+model Client {
+  id             String             @id @default(uuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  // Printed on invoices.
+  address        String             @default("")
+  email          String             @default("")
+  // ISO 4217 code. This client's projects, expenses, invoices and payments are all in it.
+  currency       String
+  archived       Boolean            @default(false)
+  customValues   CustomFieldValue[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  projects       Project[]
+  invoices       Invoice[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("client")
+}
+
+model Project {
+  id               String             @id @default(uuid())
+  organizationId   String
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  // Optional. NoAction: a client with projects can't be deleted, only archived.
+  clientId         String?
+  client           Client?            @relation(fields: [clientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  // New time entries on this project start out billable or not.
+  billable         Boolean            @default(true)
+  // Billable time is charged at the project's rate, or at each person's own rate.
+  billBy           BillBy             @default(project)
+  hourlyRate       Int? // cents per hour, when billBy = project
+  // Set (cents): a fixed fee project. Its time isn't billed by the hour; the fee is
+  // invoiced in full or in parts, as "fee" invoice lines (WRK-134).
+  fixedFee         Int?
+  // Fee per phase (WRK-151): each task with a fee is a phase, and fixedFee is their sum.
+  feeByPhase       Boolean            @default(false)
+  budgetBy         BudgetBy           @default(none)
+  budgetSeconds    Int?
+  budgetAmount     Int? // cents
+  // The budget alert last reached: 0, 80 or 100 (% used). See src/server/budget.ts.
+  budgetAlertLevel Int                @default(0)
+  // Everyone can track time on it, or only the people in `members`.
+  everyone         Boolean            @default(true)
+  // Hidden from the pickers; its time, expenses and invoices stay.
+  archived         Boolean            @default(false)
+  customValues     CustomFieldValue[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  timeEntries      TimeEntry[]
+  members          ProjectMember[]
+  tasks            Task[]
+  expenses         Expense[]
+  feeLines         InvoiceLine[]
+  scheduledWork    ScheduledWork[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("project")
+}
+
+// Money someone spent on a project, which may be billed to the client.
+model Expense {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  projectId      String
+  project        Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  date           DateTime     @db.Date
+  category       String
+  amount         Int // cents
+  notes          String       @default("")
+  billable       Boolean
+  // Paid by the person out of their own pocket, so the business owes it back to them.
+  reimbursable   Boolean      @default(false)
+  // Set once the expense is on an invoice.
+  invoiceLineId  String?
+  invoiceLine    InvoiceLine? @relation(fields: [invoiceLineId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  receipt        Receipt?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([id, organizationId])
+  @@index([organizationId, userId, date])
+  // Reports by date across the organization and by project; releasing an invoice line.
+  @@index([organizationId, date])
+  @@index([projectId, date])
+  @@index([invoiceLineId])
+  @@map("expense")
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  paid
+}
+
+enum InvoiceLineKind {
+  time
+  expense
+  custom
+  fee
+}
+
+// An invoice is a document: once made, its lines keep their own amounts even
+// if rates change later. The time and expenses on it are marked, so they're
+// never billed twice.
+model Invoice {
+  id                  String           @id @default(uuid())
+  organizationId      String
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId            String
+  client              Client           @relation(fields: [clientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  number              String
+  status              InvoiceStatus    @default(draft)
+  issueDate           DateTime         @db.Date
+  dueDate             DateTime         @db.Date
+  periodFrom          DateTime?        @db.Date
+  periodTo            DateTime?        @db.Date
+  currency            String
+  // Tax in hundredths of a percent: 825 = 8.25%. Charged after the discount.
+  taxBasisPoints      Int              @default(0)
+  // What the tax is called on the invoice: Tax, VAT, GST.
+  taxLabel            String           @default("Tax")
+  // A discount on the subtotal: a percentage (hundredths of a percent) or an amount in
+  // cents. At most one of the two is set.
+  discountBasisPoints Int              @default(0)
+  discountAmount      Int              @default(0)
+  notes               String           @default("")
+  // The client's purchase order number, if they gave one. Printed on the invoice.
+  poNumber            String           @default("")
+  // What the invoice is for, printed under the heading: "Website redesign, phase 2".
+  subject             String           @default("")
+  sentAt              DateTime?
+  paidAt              DateTime?
+  // When the invoice (or a reminder) last went out by email, and to whom.
+  emailedAt           DateTime?
+  emailedTo           String?
+  // Late-payment reminders (WRK-146): how many went out, the last one, and the per-invoice switch.
+  remindersSent       Int              @default(0)
+  lastReminderAt      DateTime?
+  remindersOff        Boolean          @default(false)
+  // Who it's for and who it's from, as they were when it stopped being a draft, so a sent
+  // invoice keeps saying what it said. Null on a draft, which shows the current details.
+  billToName          String?
+  billToAddress       String?
+  fromName            String?
+  fromAddress         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  lines               InvoiceLine[]
+  payments            Payment[]
+  schedule            InvoiceSchedule?
+
+  @@unique([organizationId, number])
+  @@unique([id, organizationId])
+  @@index([clientId])
+  @@map("invoice")
+}
+
+model InvoiceLine {
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  invoice        Invoice         @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  position       Int
+  kind           InvoiceLineKind
+  description    String
+  // Thousandths: 1.5 hours is 1500.
+  quantity       Int
+  unitPrice      Int // cents
+  amount         Int // cents, quantity × unit price, kept as invoiced
+  // The fixed fee project a "fee" line bills part of. NoAction: a project with
+  // invoiced fees can't be deleted, only archived.
+  projectId      String?
+  project        Project?        @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  // The phase a "fee" line bills part of (WRK-151). NoAction: a phase with an invoiced fee can't be deleted.
+  taskId         String?
+  task           Task?           @relation(fields: [taskId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  timeEntries    TimeEntry[]
+  expenses       Expense[]
+
+  @@unique([id, organizationId])
+  @@index([invoiceId])
+  @@index([projectId])
+  @@index([taskId])
+  @@map("invoice_line")
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+// A to-do on a project. Time can be tracked against it.
+model Task {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String
+  project        Project       @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  title          String
+  notes          String        @default("")
+  status         TaskStatus    @default(todo)
+  assigneeId     String?
+  assignee       User?         @relation(fields: [assigneeId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  dueDate        DateTime?     @db.Date
+  completedAt    DateTime?
+  // A phase's fixed fee, in cents (WRK-151), on a project billed per phase. Null: not a phase.
+  fee            Int?
+  feeLines       InvoiceLine[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  timeEntries    TimeEntry[]
+
+  @@unique([id, organizationId])
+  @@unique([id, projectId])
+  @@index([projectId])
+  @@index([organizationId, assigneeId])
+  @@map("task")
+}
+
+// A task the whole organization uses (Manage → Tasks), such as Design or Project management.
+// Each project keeps its own copy (model Task); this list is where the copies come from.
+model CommonTask {
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title            String
+  // Copied onto every new project when true.
+  addToNewProjects Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, title])
+  @@map("common_task")
+}
+
+// A project's settings saved under a name (WRK-150), to start new projects from. Copied, never
+// linked: changing or deleting a template changes no project. It never has a client.
+model ProjectTemplate {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  billable       Boolean      @default(true)
+  billBy         BillBy       @default(project)
+  hourlyRate     Int? // cents
+  fixedFee       Int? // cents
+  // Fee per phase (WRK-151): the tasks' fees are the phases'.
+  feeByPhase     Boolean      @default(false)
+  budgetBy       BudgetBy     @default(none)
+  budgetSeconds  Int?
+  budgetAmount   Int? // cents
+  everyone       Boolean      @default(true)
+  // The team, as user ids. People who have left are skipped when a project starts from it.
+  memberIds      String[]     @default([])
+  // The tasks, as [{ "title": "Design", "notes": "" }].
+  tasks          Json         @default("[]")
+  // Custom field values (WRK-148), as { fieldId: value }.
+  customFields   Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+  @@map("project_template")
+}
+
+enum BillBy {
+  project
+  person
+}
+
+enum BudgetBy {
+  none
+  hours
+  fees
+}
+
+// The people who can track time on a project that isn't open to everyone.
+model ProjectMember {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String
+  project        Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@id([projectId, userId])
+  @@index([organizationId, userId])
+  @@map("project_member")
+}
+
+// One block of someone's time on a project. Hours are always added up from
+// these rows; no totals are stored anywhere.
+model TimeEntry {
+  id              String             @id @default(uuid())
+  organizationId  String
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User               @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  projectId       String
+  project         Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  // Optional. Linked by (taskId, projectId), so the task is always on the entry's project.
+  taskId          String?
+  task            Task?              @relation(fields: [taskId, projectId], references: [id, projectId], onDelete: NoAction)
+  // The person's own calendar day, as their browser saw it. A timer that runs
+  // past midnight stays on the day it started.
+  date            DateTime           @db.Date
+  // Whole seconds recorded so far. While a timer runs, the time since
+  // startedAt is added on top when it stops.
+  seconds         Int                @default(0)
+  // Set (in UTC) only while the timer runs.
+  startedAt       DateTime?
+  notes           String             @default("")
+  // The calendar event it was imported from (WRK-105): a hash of its UID and occurrence.
+  calendarEventId String?
+  billable        Boolean
+  // Set once the time is on an invoice; it can't be changed until it's taken off.
+  invoiceLineId   String?
+  invoiceLine     InvoiceLine?       @relation(fields: [invoiceLineId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  customValues    CustomFieldValue[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // At most one running timer per person, enforced by the database.
+  @@unique([userId], map: "time_entry_one_running_timer", where: raw("\"startedAt\" IS NOT NULL"))
+  // An event imported from a calendar (WRK-105) becomes one entry for that person.
+  @@unique([userId, calendarEventId])
+  @@unique([id, organizationId])
+  @@index([organizationId, userId, date])
+  // Reports by date across the organization and by project; releasing an invoice line.
+  @@index([organizationId, date])
+  @@index([projectId, date])
+  @@index([invoiceLineId])
+  @@map("time_entry")
+}
+
+enum AuditKind {
+  time
+  timesheet
+  expense
+  project
+  person
+  invoice
+  import
+  // An admin downloaded a backup: it holds everyone's sign-in details, scrambled.
+  backup
+  // Company, email and online-payment settings.
+  settings
+}
+
+enum AuditAction {
+  created
+  changed
+  deleted
+}
+
+// Audit history (src/server/audit.ts): who changed time, expenses, rates,
+// budgets, invoices and people, and when. Rows are only ever added, in the same
+// transaction as the change they describe. Admins read them in Manage → History.
+model AuditEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // The person who made the change. No foreign key, and the name is copied,
+  // so the history still reads correctly after anything it names is gone.
+  actorId        String?
+  actorName      String
+  kind           AuditKind
+  action         AuditAction
+  subjectId      String?
+  // What changed, as it read at the time: "Website redesign · Acme Ltd", "Invoice 0003 · Acme Ltd".
+  label          String
+  // The day of the time entry or expense, if it is one.
+  entryDate      DateTime?    @db.Date
+  // [{ field, from, to }]: raw values (cents, seconds, ISO dates); the screen formats them.
+  changes        Json         @default("[]")
+  // The currency the amounts in `changes` are in, for a client billed in its own (WRK-135).
+  // Null: the home currency.
+  currency       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, actorId, createdAt])
+  @@map("audit_event")
+}
+
+enum TimesheetStatus {
+  submitted
+  approved
+  rejected
+}
+
+// A week someone submitted for approval. No row means the week is open.
+// Submitted and approved weeks are locked; reopening deletes the row.
+model TimesheetWeek {
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  // The Monday the week starts on.
+  weekStart      DateTime        @db.Date
+  status         TimesheetStatus
+  submittedAt    DateTime
+  decidedAt      DateTime?
+  // Who approved or rejected it, copied like the audit history does.
+  decidedById    String?
+  decidedByName  String?
+  // Why it was rejected, for the person who submitted it.
+  note           String          @default("")
+
+  @@unique([userId, weekStart])
+  @@index([organizationId, status, weekStart])
+  @@map("timesheet_week")
+}
+
+// A receipt (image or PDF) attached to an expense (src/server/receipts.ts). Stored as
+// uploaded: its type is read from the file's own header, never decoded on the server.
+model Receipt {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  expenseId      String       @unique
+  expense        Expense      @relation(fields: [expenseId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  contentType    String
+  fileName       String
+  size           Int
+  data           Bytes
+  createdAt      DateTime     @default(now())
+
+  @@unique([expenseId, organizationId])
+  @@map("receipt")
+}
+
+enum PaymentProvider {
+  stripe
+}
+
+enum PaymentStatus {
+  open
+  // The client finished, but the money is still on its way (a bank payment, which can take days).
+  processing
+  paid
+  expired
+  failed
+}
+
+// Single sign-on (src/server/sso.ts): "Sign in with your company account" through the
+// organization's own identity provider (Google Workspace, Microsoft Entra ID, Okta), over
+// OpenID Connect. People still need an invitation, unless allowJoin lets anyone at `domain` in.
+model SsoSettings {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Shown on the button: "Sign in with Google Workspace".
+  providerName   String
+  // The OpenID Connect issuer, like https://accounts.google.com.
+  issuer         String
+  clientId       String
+  // The client secret, encrypted (secrets.ts).
+  secret         String
+  // The email domain people sign in with, like yourstudio.com.
+  domain         String
+  allowJoin      Boolean      @default(false)
+  // Everyone but admins signs in through the provider; admins keep their password as a way back in.
+  requireSso     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("sso_settings")
+}
+
+// Online invoice payments (src/server/payments.ts): the organization's own
+// Stripe account. Money goes straight to it; the app only creates checkout
+// pages and confirms payments with the provider.
+model PaymentSettings {
+  id             String          @id @default(uuid())
+  organizationId String          @unique
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       PaymentProvider
+  // "test" or "live", from the key itself.
+  mode           String
+  // The API key, encrypted like the email password (secrets.ts).
+  secret         String
+  // The key's last four characters, to show which key is saved.
+  keyHint        String
+  // The webhook the app registered with the provider, if it could.
+  webhookId      String?
+  webhookSecret  String?
+  lastError      String?
+  updatedAt      DateTime        @updatedAt
+
+  @@map("payment_settings")
+}
+
+// One checkout started from an invoice's Pay now link.
+model Payment {
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  // An invoice with payments can't be deleted (the app removes its unpaid checkouts first).
+  invoice        Invoice         @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  provider       PaymentProvider
+  // The provider's own id for the checkout (Stripe: the Checkout Session id).
+  providerRef    String
+  // What the provider was asked to charge, in its smallest unit (Stripe: yen for JPY, cents for USD).
+  amount         Int
+  // The invoice total it was for, in the app's hundredths.
+  amountCents    Int
+  currency       String
+  status         PaymentStatus   @default(open)
+  createdAt      DateTime        @default(now())
+  checkedAt      DateTime?
+  paidAt         DateTime?
+
+  @@unique([provider, providerRef])
+  @@index([organizationId, status])
+  @@index([invoiceId])
+  @@map("payment")
+}
+
+enum TimeOffKind {
+  vacation
+  sick
+  other
+}
+
+enum TimeOffStatus {
+  approved
+  pending
+}
+
+// A person's day off, or half day (WRK-138): one row per weekday. It takes that day's share of
+// their usual hours off their capacity on the Team page, once approved.
+model TimeOff {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User          @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  date           DateTime      @db.Date
+  half           Boolean       @default(false)
+  kind           TimeOffKind
+  note           String        @default("")
+  status         TimeOffStatus
+  createdAt      DateTime      @default(now())
+
+  @@unique([userId, date])
+  @@index([organizationId, date])
+  @@map("time_off")
+}
+
+// A company holiday: nobody is expected to work that day (WRK-138).
+model Holiday {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  date           DateTime     @db.Date
+  name           String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, date])
+  @@map("holiday")
+}
+
+// Hours planned for one person on one project in one week (WRK-139), set on the Team page's
+// Schedule. A week is its Monday. Planned hours are a guide: nothing stops anyone tracking more.
+model ScheduledWork {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  projectId      String
+  project        Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  weekStart      DateTime     @db.Date
+  minutes        Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, projectId, weekStart])
+  @@index([organizationId, weekStart])
+  @@map("scheduled_work")
+}
+
+enum RepeatEvery {
+  week
+  month
+  quarter
+}
+
+// An invoice that repeats (WRK-42): on each date a new draft is made from it, never sent by
+// itself. The drafts are due every week, month or quarter from startDate; `made` counts them,
+// so the next one is due at the made-th step and a draft can't be made twice for one date.
+model InvoiceSchedule {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  every          RepeatEvery
+  startDate      DateTime     @db.Date
+  made           Int          @default(0)
+  // No drafts after this date. Null: it repeats until it's stopped.
+  endDate        DateTime?    @db.Date
+  pausedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // One schedule per invoice.
+  @@unique([invoiceId, organizationId])
+  @@unique([id, organizationId])
+  @@map("invoice_schedule")
+}
+
+// Custom fields (WRK-148): an admin's own fields on time entries, projects or clients, like
+// "Phase" or "Department". A field is never deleted: removing it hides it and keeps its values.
+enum CustomFieldKind {
+  time
+  project
+  client
+}
+
+enum CustomFieldType {
+  text
+  choice
+  number
+}
+
+model CustomField {
+  id             String             @id @default(uuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  appliesTo      CustomFieldKind
+  type           CustomFieldType
+  // The list for a "choice" field, in order.
+  choices        String[]           @default([])
+  required       Boolean            @default(false)
+  // Set when removed: hidden from forms, reports and exports, values kept, and it can be restored.
+  archivedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  values         CustomFieldValue[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("custom_field")
+}
+
+// One field's value on one record. Numbers are kept as typed ("12.5").
+model CustomFieldValue {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fieldId        String
+  field          CustomField  @relation(fields: [fieldId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  timeEntryId    String?
+  timeEntry      TimeEntry?   @relation(fields: [timeEntryId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  clientId       String?
+  client         Client?      @relation(fields: [clientId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  value          String
+
+  @@unique([fieldId, timeEntryId])
+  @@unique([fieldId, projectId])
+  @@unique([fieldId, clientId])
+  @@index([timeEntryId])
+  @@index([projectId])
+  @@index([clientId])
+  @@map("custom_field_value")
+}
+
+// User groups (WRK-149): teams or departments, like "Design" or "Studio B". A person can be in
+// several. Groups only sort and filter people; they never change what anyone can see or do.
+model UserGroup {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  members        UserGroupMember[]
+
+  @@unique([organizationId, name])
+  @@unique([id, organizationId])
+  @@map("user_group")
+}
+
+model UserGroupMember {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groupId        String
+  group          UserGroup    @relation(fields: [groupId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([organizationId, userId])
+  @@map("user_group_member")
+}

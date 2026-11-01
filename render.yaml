@@ -1,0 +1,42 @@
+# Render Blueprint: what "Deploy to Render" creates. One web service built from the
+# Dockerfile, and one Postgres 17 database that only that service can reach.
+# Spec: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    # The name is part of the app's address (workspace-xxxx.onrender.com), which your
+    # clients see on invoice payment links: neutral, not ours.
+    name: workspace
+    runtime: docker
+    plan: 0.5c-512mb # 0.5 CPU, 512 MB (the plan formerly called Starter)
+    region: oregon # Must match the database. Use frankfurt for the EU.
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: workspace-db
+          property: connectionString
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # The code that claims the new install. Render makes it, so there is nothing to type when
+      # deploying; the setup page links to this service's Environment page, where the owner copies it.
+      - key: SETUP_CODE
+        generateValue: true
+      # Render's proxy sits in front of the app and passes on each visitor's address.
+      - key: TRUST_PROXY
+        value: "1"
+      # BETTER_AUTH_URL is not needed: the app uses Render's own address
+      # (RENDER_EXTERNAL_URL). Add it if you move the app to your own domain.
+
+databases:
+  - name: workspace-db
+    plan: 0.1c-256mb # 0.1 CPU, 256 MB
+    region: oregon
+    postgresMajorVersion: "17"
+    # 5 GB of disk ($1.50 a month): years of time entries and receipts. Without this line Render
+    # picks 15 GB ($4.50). It can be raised later in Render's dashboard, never lowered.
+    # The site quotes the total this file creates (store/src/config/site.ts): keep them in step.
+    diskSizeGB: 5
+    databaseName: workspace
+    user: workspace
+    ipAllowList: [] # No outside connections; only services in your Render account.

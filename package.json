@@ -1,0 +1,52 @@
+{
+  "name": "workspace",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "prisma generate && vite build && node scripts/build-server.mjs",
+    "start": "CHECKPOINT_DISABLE=1 prisma migrate deploy && exec node dist/server.js",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "demo:load": "tsx scripts/load-demo-data.ts"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@hono/node-server": "2.1.4",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@radix-ui/themes": "3.3.0",
+    "better-auth": "1.7.7",
+    "hono": "4.13.13",
+    "ical.js": "2.2.1",
+    "nodemailer": "10.1.7",
+    "prisma": "7.10.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.0",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "esbuild": "0.28.2",
+    "smtp-server": "3.19.24",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "mysql2": "3.24.5",
+    "deepmerge-ts": "8.0.2"
+  }
+}

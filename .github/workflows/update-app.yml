@@ -1,0 +1,226 @@
+# Updates this app to the latest Workletto release.
+#
+# Run it from your repository's Actions tab: Update app → Run workflow. It
+# downloads the newest Workletto release from GitHub, checks Workletto signed it,
+# and opens a pull request. Nothing changes in your running app until you merge
+# that pull request.
+#
+# One-time setup, in your repository's Settings: Actions → General → Workflow
+# permissions, tick "Allow GitHub Actions to create and approve pull requests".
+# Without it, the workflow gives you a link to open the pull request yourself.
+#
+# How it keeps your own changes: see .github/update-app/apply-release.sh.
+name: Update app
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup:
+        description: I have a recent backup of my database (the first step explains how to make one)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-app
+  cancel-in-progress: false
+
+env:
+  # Where releases come from: the GitHub releases of Workletto's public repository.
+  RELEASES_REPO: Workletto/workletto-v1
+  VENDOR_BRANCH: vendor
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Take a backup first
+        env:
+          BACKUP_CONFIRMED: ${{ inputs.backup }}
+        run: |
+          cat >>"$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Take a backup before you merge an update
+
+          Updates can change your database. Keep a copy you can go back to:
+
+          - **Any host:** in the app, Manage → Security & data → **Download backup**. It has
+            everything, and restores into a new install from its setup screen.
+          - **To put the database back in place** if the update fails, also keep a database copy:
+            - **Render:** paid Render databases offer point-in-time recovery (check your plan).
+              For a copy you keep, install the Postgres 17 client tools on your computer and run
+              `pg_dump -Fc "<External Database URL>" > work-backup.dump`
+              (the URL is on your database's page in the Render dashboard; the database is closed
+              to outside connections, so first add your computer's IP address to its access list there).
+            - **Docker Compose:** on your server, in the app folder, run
+              `docker compose exec -T db pg_dump -U work -Fc work > work-backup.dump`
+
+          How to restore a backup, and what to do if the app won't start after an update, is in the README, under "Backups and recovery".
+          EOF
+          if [ "$BACKUP_CONFIRMED" != "true" ]; then
+            echo "::error title=Take a backup first::Make a backup of your database (see this run's summary for how), then run Update app again and tick the backup box."
+            exit 1
+          fi
+          echo "Backup confirmed. Continuing."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          # GitHub's built-in token can't change workflow files. An optional
+          # UPDATE_TOKEN secret (fine-grained, this repository only, with Contents,
+          # Pull requests and Workflows: read and write) lets updates include them.
+          token: ${{ secrets.UPDATE_TOKEN || github.token }}
+
+      - name: Download the latest release
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The version to update from: the last Workletto release this repository received, as
+          # apply-release.sh sees it (the vendor branch, else the first commit), so your own edits
+          # to package.json don't change which release is picked.
+          if ! from=$(git rev-parse --verify --quiet "refs/remotes/origin/$VENDOR_BRANCH^{commit}"); then
+            from=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+          fi
+          current=$(git show "$from:package.json" | node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => console.log(JSON.parse(s).version ?? ""))')
+          if ! gh api --paginate --slurp "repos/$RELEASES_REPO/releases?per_page=100" >"$RUNNER_TEMP/releases.json"; then
+            echo "::error title=Download failed::GitHub's list of Workletto releases couldn't be read. Try again later."
+            exit 1
+          fi
+          # The newest release for this copy's major version (see the script for why).
+          if ! version=$(node .github/update-app/pick-release.mjs "$RUNNER_TEMP/releases.json" "$current"); then
+            echo "::error title=Version not recognized::The last Workletto release this repository received says its version is \"$current\", which isn't a Workletto version number."
+            exit 1
+          fi
+          if [ -z "$version" ]; then
+            echo "::error title=No release found::There's no Workletto release to update to from version $current."
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/release"
+          mkdir -p "$dir"
+          if ! gh release download "v$version" --repo "$RELEASES_REPO" --dir "$dir" \
+            --pattern "workletto-v$version.zip" --pattern "workletto-v$version.zip.sig"; then
+            echo "::error title=Download failed::Workletto v$version couldn't be downloaded from GitHub. Try again later."
+            exit 1
+          fi
+          echo "Downloaded Workletto v$version ($(du -h "$dir/workletto-v$version.zip" | cut -f1))."
+          {
+            echo "zip=$dir/workletto-v$version.zip"
+            echo "sig=$dir/workletto-v$version.zip.sig"
+            echo "version=$version"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Check Workletto signed it
+        env:
+          ZIP: ${{ steps.download.outputs.zip }}
+          SIG: ${{ steps.download.outputs.sig }}
+        run: |
+          set -euo pipefail
+          # The signature is published beside the zip. It must check out against the key in
+          # .github/update-app/allowed_signers, which your repository already has: a release
+          # changed anywhere on its way here is refused.
+          if [ ! -s "$SIG" ]; then
+            echo "::error title=Release not signed::This release came without a signature, so it wasn't applied."
+            exit 1
+          fi
+          if ! ssh-keygen -q -Y verify -f .github/update-app/allowed_signers -I releases@workletto.com \
+            -n workletto-release -s "$SIG" <"$ZIP" >/dev/null 2>&1; then
+            echo "::error title=Release not verified::This release isn't signed with Workletto's release key, so it wasn't applied."
+            exit 1
+          fi
+          echo "Signature checked: this release is from Workletto, unchanged."
+
+      - name: Add the release to the vendor branch
+        id: apply
+        env:
+          ZIP: ${{ steps.download.outputs.zip }}
+          VERSION: ${{ steps.download.outputs.version }}
+          HOLD_BACK_WORKFLOWS: ${{ secrets.UPDATE_TOKEN == '' && '1' || '0' }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898283+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898283+github-actions[bot]@users.noreply.github.com
+        run: bash .github/update-app/apply-release.sh "$ZIP" "$VERSION"
+
+      - name: Push the vendor branch
+        if: steps.apply.outputs.changed == 'true'
+        run: git push origin "refs/heads/$VENDOR_BRANCH:refs/heads/$VENDOR_BRANCH"
+
+      - name: Open the pull request
+        if: steps.apply.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN || github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+          VERSION: ${{ steps.apply.outputs.version }}
+          HELD_BACK: ${{ steps.apply.outputs.held_back }}
+          AUTOMATION: ${{ steps.apply.outputs.automation }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/pull-request.md"
+          cat >"$body" <<EOF
+          This updates your app to **Workletto v$VERSION**. Nothing changes in your running app until you merge.
+
+          ### Before you merge
+          1. **Take a backup of your database.** The first step of the Update app workflow explains how.
+          2. Look through **Files changed** if you like. It shows everything this update changes.
+          3. Merge with **Create a merge commit**. Don't use "Squash and merge" or "Rebase and merge":
+             the next update relies on this merge to tell your changes apart from ours.
+
+          ### If GitHub reports conflicts
+          Conflicts only appear where you and this update changed the same lines. Resolve them with
+          GitHub's **Resolve conflicts** button, or ask an AI coding assistant to merge the \`$VENDOR_BRANCH\`
+          branch into \`$BASE\` and keep both sets of changes. For \`package-lock.json\`, keep this
+          update's version and run \`npm install\`.
+
+          ### After you merge
+          - **Render** deploys the new version by itself. Database changes run before it takes traffic;
+            if they fail, the previous version keeps running.
+          - **Docker Compose:** on your server, run \`git pull\` and then \`docker compose up -d --build\`.
+          EOF
+          if [ -n "$HELD_BACK" ]; then
+            files=$(printf '%s' "$HELD_BACK" | sed 's/,/`, `/g')
+            cat >>"$body" <<EOF
+
+          ### Workflow files not included
+          This release also changes \`$files\`. GitHub doesn't let a workflow change
+          workflow files with its built-in token, so they were left as they were. To include them, add a
+          repository secret named \`UPDATE_TOKEN\` (a fine-grained token for this repository with Contents,
+          Pull requests and Workflows set to read and write) and run Update app again.
+          EOF
+          fi
+
+          if [ -n "$AUTOMATION" ]; then
+            files=$(printf '%s' "$AUTOMATION" | sed 's/,/`, `/g')
+            cat >>"$body" <<EOF
+
+          ### This update changes how updates run
+          It changes \`$files\`. These files run in your repository with its permissions, or decide
+          which releases it trusts. Look at them in **Files changed** before you merge.
+          EOF
+          fi
+
+          title="Update Workletto to v$VERSION"
+          existing=$(gh pr list --head "$VENDOR_BRANCH" --base "$BASE" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body-file "$body"
+            url=$existing
+          elif ! url=$(gh pr create --head "$VENDOR_BRANCH" --base "$BASE" --title "$title" --body-file "$body"); then
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$VENDOR_BRANCH?expand=1"
+            echo "::warning title=Open the pull request yourself::GitHub didn't let this workflow open it. Open $url and click Create pull request. (To let the workflow do it next time: Settings → Actions → General → tick \"Allow GitHub Actions to create and approve pull requests\".)"
+          fi
+          {
+            echo "## Workletto v$VERSION is ready to review"
+            echo ""
+            echo "Pull request: $url"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to update
+        if: steps.apply.outputs.pending == 'false'
+        env:
+          VERSION: ${{ steps.apply.outputs.version }}
+        run: echo "Your app already has the latest release (v$VERSION)." | tee -a "$GITHUB_STEP_SUMMARY"

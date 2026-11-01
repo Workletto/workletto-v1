@@ -1,0 +1,45 @@
+# Runs Workletto and its database on your own server.
+# 1. Copy .env.example to .env and fill in the three values it asks for.
+# 2. Run: docker compose up -d
+# 3. Put an HTTPS proxy (such as Caddy) on the same server in front of port 3000, at the
+#    address you set as BETTER_AUTH_URL. Port 3000 is published on this server's own
+#    address (127.0.0.1) only, which the proxy reaches. Nobody else can connect to it
+#    directly, so nobody can forge the visitor address the app reads from the proxy.
+name: workspace
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgresql://work:work@db:5432/work
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Fill in BETTER_AUTH_SECRET in .env (see .env.example)}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Fill in BETTER_AUTH_URL in .env (see .env.example)}
+      SETUP_CODE: ${SETUP_CODE:?Fill in SETUP_CODE in .env (see .env.example)}
+      # The HTTPS proxy in front (step 3 above) is the one proxy the app trusts for visitor addresses.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    # The database port is not published, so only the app container can reach it.
+    environment:
+      POSTGRES_USER: work
+      POSTGRES_PASSWORD: work
+      POSTGRES_DB: work
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U work -d work"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  # Your data lives here and survives updates. Back it up.
+  db-data:

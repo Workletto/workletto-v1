@@ -1,0 +1,51 @@
+# Checks your copy of the app on every pull request (from you or an AI coding assistant) and
+# every push to main: the type check, the server tests against a throwaway Postgres database,
+# and a production build. It uses no secrets, touches no real data and deploys nothing.
+# See AGENTS.md for what each check covers.
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Workletto's own repository runs a fuller check (ci.yml) instead.
+    if: github.repository != 'Workletto/workletto'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: work
+          POSTGRES_PASSWORD: work
+          POSTGRES_DB: work_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U work"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://work:work@localhost:5432/work_test
+      CHECKPOINT_DISABLE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

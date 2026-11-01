@@ -1,0 +1,13 @@
+node_modules/
+dist/
+src/generated/
+.env
+.env.*
+!.env.example
+.DS_Store
+release/
+
+# End-to-end test output and the saved admin sign-in
+test-results/
+playwright-report/
+tests/e2e/.auth/

@@ -1,0 +1,12 @@
+# Keep secrets, local builds and installed packages out of the image.
+.env
+.env.*
+!.env.example
+node_modules
+dist
+src/generated
+.git
+.claude
+tests
+*.log
+.DS_Store

@@ -1,0 +1,4 @@
+# The key Workletto signs its releases with. The Update app workflow applies a
+# release only if its signature checks out against this key
+# (ssh-keygen -Y verify, namespace "workletto-release").
+releases@workletto.com namespaces="workletto-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPwLKTrFWDWxyM2f7Vuwki8+KSa5+UFcObmpQLh+4CY0
