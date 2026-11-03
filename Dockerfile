@@ -2,7 +2,7 @@
 # Used by Render (render.yaml) and by Docker Compose (compose.yaml).
 
 # ---- Build: install everything, build, then drop development packages ----
-FROM node:24.21.0-trixie-slim AS build
+FROM node:24.22.0-trixie-slim AS build
 WORKDIR /app
 
 # Prisma's migration engine needs OpenSSL, and checks for it when it is installed.
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 # ---- Runtime: only what `npm start` needs ----
-FROM node:24.21.0-trixie-slim
+FROM node:24.22.0-trixie-slim
 WORKDIR /app
 
 RUN apt-get update \
