@@ -2,11 +2,11 @@
   "name": "workspace",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "prisma generate && vite build && node scripts/build-server.mjs",
-    "start": "CHECKPOINT_DISABLE=1 prisma migrate deploy && exec node dist/server.js",
+    "start": "CHECKPOINT_DISABLE=1 node scripts/migrate.mjs && exec node dist/server.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",

@@ -14,7 +14,8 @@ test("save a project as a template, start a new project from it, then rename and
   await page.getByRole("button", { name: "Save as template" }).click();
   await page.getByLabel("Template name").fill(templateName);
   await page.getByRole("button", { name: "Save template" }).click();
-  await expect(page.getByText(/^Saved as a template\./)).toBeVisible();
+  // The visible message; the screen reader announcement says only its first sentence.
+  await expect(page.getByText(/^Saved as a template\. Start new projects/)).toBeVisible();
 
   await page.goto("/projects");
   const newName = unique("Globex retainer");

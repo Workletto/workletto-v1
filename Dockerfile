@@ -36,6 +36,7 @@ ENV NODE_ENV=production \
 # Files stay owned by root, so the running app cannot change its own code.
 COPY --from=build /app/package.json /app/package-lock.json /app/prisma.config.ts /app/CHANGELOG.md ./
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 

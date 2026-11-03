@@ -88,11 +88,13 @@ describe("no phone-home", () => {
     expect(count(code)).toBe(allowedCalls);
   });
 
-  // Starting the app runs the database tool first (`npm start`: prisma migrate deploy). Its only
-  // call home is an update check, turned off in the start command and in the Docker image.
+  // Starting the app runs the database tool first (`npm start`: scripts/migrate.mjs runs prisma
+  // migrate deploy). Its only call home is an update check, turned off in the start command, in
+  // the script and in the Docker image.
   it("starting the app turns off the database tool's update check", () => {
     const start = JSON.parse(readFileSync("package.json", "utf8")).scripts.start as string;
-    expect(start).toMatch(/^CHECKPOINT_DISABLE=1 prisma migrate deploy && /);
+    expect(start).toMatch(/^CHECKPOINT_DISABLE=1 node scripts\/migrate\.mjs && /);
+    expect(readFileSync("scripts/migrate.mjs", "utf8")).toMatch(/CHECKPOINT_DISABLE: "1"/);
     const docker = readFileSync("Dockerfile", "utf8");
     expect(docker).toMatch(/CHECKPOINT_DISABLE=1/);
     expect(docker).toMatch(/NPM_CONFIG_UPDATE_NOTIFIER=false/);

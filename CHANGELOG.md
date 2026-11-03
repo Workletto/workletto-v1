@@ -9,6 +9,16 @@ anyway: the Update app workflow explains how.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-01
+
+### Fixed
+
+- A first install on Render no longer fails with "Can't reach database server". Render can start the app before its new database accepts connections; the app now waits up to 10 minutes for the database before it sets it up.
+
+### Database
+
+No changes.
+
 ## [1.0.0] - 2026-11-01
 
 The first version: everything a small agency or studio needs to track time and bill for it.
